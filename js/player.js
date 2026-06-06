@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { getScene, getTileSize, getGridSize } from "./scene.js";
+import { getScene, getTileSize, getGridSize, getCamera } from "./scene.js";
 import {
   isLand,
   getTerrainHeight,
@@ -139,6 +139,22 @@ export function updatePlayer(delta) {
   if (len > 1) {
     moveX /= len;
     moveZ /= len;
+  }
+
+  const camera = getCamera();
+  if (camera && (moveX !== 0 || moveZ !== 0)) {
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0;
+    const fLen = forward.length();
+    if (fLen > 0.0001) {
+      forward.multiplyScalar(1 / fLen);
+      const right = new THREE.Vector3(-forward.z, 0, forward.x);
+      const worldX = right.x * moveX + forward.x * moveZ;
+      const worldZ = right.z * moveX + forward.z * moveZ;
+      moveX = worldX;
+      moveZ = worldZ;
+    }
   }
 
   const prevX = position.x;

@@ -16,6 +16,70 @@ let waveForceDir = new THREE.Vector3(1, 0, 0.5).normalize(); // wave propagation
 let waveForcePhase = 0;
 const WAVE_FORCE_STRENGTH = 1.2; // base push strength (units/sec)
 const WAVE_FORCE_PERIOD = 4.0;   // seconds per full wave cycle
+let shallowWaveTex = null;
+let deepWaveTex = null;
+let shallowFlowMesh = null;
+let deepFlowMesh = null;
+
+function createWaveDirectionTexture(size = 256) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const arrowStep = 48;
+  for (let y = -arrowStep; y <= size + arrowStep; y += arrowStep) {
+    for (let x = -arrowStep; x <= size + arrowStep; x += arrowStep) {
+      const jx = (Math.random() - 0.5) * 10;
+      const jy = (Math.random() - 0.5) * 10;
+      const cx = x + jx;
+      const cy = y + jy;
+      const len = 20 + Math.random() * 14;
+      const head = 6 + Math.random() * 4;
+      const a = 0.12 + Math.random() * 0.16;
+
+      ctx.strokeStyle = `rgba(255,255,255,${a})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - len * 0.4);
+      ctx.lineTo(cx, cy + len * 0.4);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx - head, cy + len * 0.4 - head);
+      ctx.lineTo(cx, cy + len * 0.4);
+      ctx.lineTo(cx + head, cy + len * 0.4 - head);
+      ctx.stroke();
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(10, 10);
+  tex.center.set(0.5, 0.5);
+  tex.offset.set(0, 0);
+  tex.rotation = 0;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function updateWaveDirectionVisuals(delta) {
+  const speedShallow = 0.12;
+  const speedDeep = 0.08;
+  if (shallowWaveTex) {
+    shallowWaveTex.offset.x = (shallowWaveTex.offset.x + waveForceDir.x * delta * speedShallow) % 1;
+    shallowWaveTex.offset.y = (shallowWaveTex.offset.y + waveForceDir.z * delta * speedShallow) % 1;
+  }
+  if (deepWaveTex) {
+    deepWaveTex.offset.x = (deepWaveTex.offset.x + waveForceDir.x * delta * speedDeep) % 1;
+    deepWaveTex.offset.y = (deepWaveTex.offset.y + waveForceDir.z * delta * speedDeep) % 1;
+  }
+}
 
 export function createOcean() {
   const scene = getScene();
@@ -31,11 +95,28 @@ export function createOcean() {
     shininess: 60,
     side: THREE.DoubleSide,
   });
+  shallowWaveTex = createWaveDirectionTexture(256);
+  shallowWaveTex.repeat.set(16, 16);
   const shallowRing = new THREE.Mesh(shallowGeo, shallowMat);
   shallowRing.rotation.x = -Math.PI / 2;
   shallowRing.position.y = -0.14;
   shallowRing.name = 'shallowWater';
   scene.add(shallowRing);
+
+  const shallowFlowMat = new THREE.MeshBasicMaterial({
+    color: 0xbbe9ff,
+    transparent: true,
+    opacity: 0.32,
+    map: shallowWaveTex,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  shallowFlowMesh = new THREE.Mesh(shallowGeo, shallowFlowMat);
+  shallowFlowMesh.rotation.x = -Math.PI / 2;
+  shallowFlowMesh.position.y = -0.135;
+  shallowFlowMesh.name = 'shallowFlow';
+  scene.add(shallowFlowMesh);
 
   // Full water plane (deep color base)
   const geo = new THREE.PlaneGeometry(GRID * TILE, GRID * TILE, GRID * 2, GRID * 2);
@@ -47,11 +128,28 @@ export function createOcean() {
     shininess: 40,
     side: THREE.DoubleSide,
   });
+  deepWaveTex = createWaveDirectionTexture(256);
+  deepWaveTex.repeat.set(12, 12);
   waterMesh = new THREE.Mesh(geo, mat);
   waterMesh.rotation.x = -Math.PI / 2;
   waterMesh.position.y = -0.15;
   waterMesh.name = 'ocean';
   scene.add(waterMesh);
+
+  const deepFlowMat = new THREE.MeshBasicMaterial({
+    color: 0xa8ddff,
+    transparent: true,
+    opacity: 0.16,
+    map: deepWaveTex,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  deepFlowMesh = new THREE.Mesh(geo, deepFlowMat);
+  deepFlowMesh.rotation.x = -Math.PI / 2;
+  deepFlowMesh.position.y = -0.145;
+  deepFlowMesh.name = 'deepFlow';
+  scene.add(deepFlowMesh);
 
   // Decorative waves/ripples
   const rippleGroup = new THREE.Group();
@@ -87,6 +185,7 @@ export function updateOcean(delta) {
   }
   // Rotate wave direction slowly
   updateWaveDirection(delta);
+  updateWaveDirectionVisuals(delta);
 }
 
 // Create wave effect (called by gyro mode B on sea)
