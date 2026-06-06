@@ -14,6 +14,7 @@ import { playCollect, playSplash, playAlert, playVictory, playGameOver, initAudi
 
 let clock;
 let gameLoopId = null;
+const cameraTargetPos = new THREE.Vector3();
 
 // Clean up old scene objects AND old canvas
 function cleanupScene() {
@@ -61,7 +62,8 @@ function startGameLoop() {
 
     const pos = getPlayerPosition();
     const camera = getCamera();
-    camera.position.set(pos.x + 16, pos.y + 14, pos.z + 16);
+    cameraTargetPos.set(pos.x + 16, pos.y + 14, pos.z + 16);
+    camera.position.lerp(cameraTargetPos, 0.05);
     camera.lookAt(pos.x, pos.y, pos.z);
 
     render();

@@ -29,6 +29,9 @@ let gyroTarget = null;
 let gyroMoveRemaining = 0;
 
 let patrolPoints = [];
+let gaitPhase = 0;
+let legMeshes = [];
+let bodyMesh = null;
 
 // Generate random patrol points on land/shallow water each game
 function generatePatrolPoints() {
@@ -63,6 +66,9 @@ function generatePatrolPoints() {
 export function createPursuer() {
   const scene = getScene();
   const group = new THREE.Group();
+  gaitPhase = 0;
+  legMeshes = [];
+  bodyMesh = null;
 
   // Geometric creature - blocky hound
   const mat = new THREE.MeshToonMaterial({ color: 0xff4444 });
@@ -72,6 +78,9 @@ export function createPursuer() {
   const bodyGeo = new THREE.BoxGeometry(0.5, 0.3, 0.7);
   const body = new THREE.Mesh(bodyGeo, mat);
   body.position.y = 0.35;
+  body.name = "body";
+  body.userData.baseY = 0.35;
+  bodyMesh = body;
   group.add(body);
 
   // Head
@@ -91,10 +100,15 @@ export function createPursuer() {
 
   // Legs
   const legGeo = new THREE.BoxGeometry(0.12, 0.25, 0.12);
+  legGeo.translate(0, -0.125, 0);
   for (let lx = -1; lx <= 1; lx += 2) {
     for (let lz = -1; lz <= 1; lz += 2) {
       const leg = new THREE.Mesh(legGeo, mat);
-      leg.position.set(lx * 0.18, 0.1, lz * 0.25);
+      leg.position.set(lx * 0.18, 0.22, lz * 0.25);
+      leg.userData.baseY = leg.position.y;
+      leg.userData.lx = lx;
+      leg.userData.lz = lz;
+      legMeshes.push(leg);
       group.add(leg);
     }
   }
@@ -271,6 +285,49 @@ export function updatePursuer(delta) {
   if (marker) {
     marker.position.y = 1.0 + Math.sin(performance.now() * 0.005) * 0.12;
     marker.rotation.z += delta * 0.3;
+  }
+
+  applyGaitAnimation(delta, prevX, prevZ);
+}
+
+function applyGaitAnimation(delta, prevX, prevZ) {
+  if (!pursuerMesh) return;
+  const dt = Math.max(0.000001, delta);
+  const movedX = position.x - prevX;
+  const movedZ = position.z - prevZ;
+  const moveSpeed = Math.sqrt(movedX * movedX + movedZ * movedZ) / dt;
+  const moving = moveSpeed > 0.08;
+
+  const lerp = 1 - Math.pow(0.001, delta);
+  const chase = state === "CHASE";
+
+  if (moving) {
+    const speedNorm = THREE.MathUtils.clamp(moveSpeed / (chase ? CHASE_SPEED : PATROL_SPEED), 0.2, 1.6);
+    const stepFreq = (chase ? 20 : 8) * speedNorm;
+    gaitPhase += delta * stepFreq;
+  } else {
+    gaitPhase += delta * 2;
+  }
+
+  const s = Math.sin(gaitPhase);
+  const swingAmp = chase ? 1.25 : 0.5;
+  const liftAmp = chase ? 0.065 : 0.03;
+  const lean = chase ? -0.55 : -0.12;
+
+  for (const leg of legMeshes) {
+    const pair = leg.userData.lx === leg.userData.lz ? 1 : -1;
+    const swing = s * swingAmp * pair;
+    const lift = Math.max(0, s * pair) * liftAmp;
+    leg.rotation.x = THREE.MathUtils.lerp(leg.rotation.x, swing, lerp);
+    leg.position.y = THREE.MathUtils.lerp(leg.position.y, (leg.userData.baseY ?? 0.22) + lift, lerp);
+  }
+
+  if (bodyMesh) {
+    const baseY = bodyMesh.userData.baseY ?? 0.35;
+    const bob = moving ? Math.abs(s) * (chase ? 0.08 : 0.035) : 0;
+    bodyMesh.position.y = THREE.MathUtils.lerp(bodyMesh.position.y, baseY + bob, lerp);
+    bodyMesh.rotation.x = THREE.MathUtils.lerp(bodyMesh.rotation.x, moving ? lean : 0, lerp);
+    bodyMesh.rotation.z = THREE.MathUtils.lerp(bodyMesh.rotation.z, moving ? s * (chase ? 0.06 : 0.03) : 0, lerp);
   }
 }
 

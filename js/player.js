@@ -26,6 +26,8 @@ const SPEED_LAND = 6; // tiles/sec
 const SPEED_WATER = 3; // tiles/sec
 const JUMP_FORCE = 5;
 const GRAVITY = 12;
+let walkPhase = 0;
+let lastFacing = 0;
 
 // Input state
 const keys = {};
@@ -43,22 +45,35 @@ export function createPlayer() {
   const bodyGeo = new THREE.CylinderGeometry(0.12, 0.15, 0.6, 6);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 0.4;
+  body.name = "body";
+  body.userData.baseY = 0.4;
   group.add(body);
 
   // Head
   const headGeo = new THREE.SphereGeometry(0.18, 8, 6);
   const head = new THREE.Mesh(headGeo, headMat);
   head.position.y = 0.85;
+  head.name = "head";
+  head.userData.baseY = 0.85;
   group.add(head);
 
   // Legs
   const legGeo = new THREE.CylinderGeometry(0.05, 0.06, 0.4, 6);
+  const legLRoot = new THREE.Group();
+  legLRoot.position.set(-0.08, 0.25, 0);
+  legLRoot.name = "legL";
   const legL = new THREE.Mesh(legGeo, bodyMat);
-  legL.position.set(-0.08, 0.05, 0);
-  group.add(legL);
+  legL.position.y = -0.2;
+  legLRoot.add(legL);
+  group.add(legLRoot);
+
+  const legRRoot = new THREE.Group();
+  legRRoot.position.set(0.08, 0.25, 0);
+  legRRoot.name = "legR";
   const legR = new THREE.Mesh(legGeo, bodyMat);
-  legR.position.set(0.08, 0.05, 0);
-  group.add(legR);
+  legR.position.y = -0.2;
+  legRRoot.add(legR);
+  group.add(legRRoot);
 
   // Floating marker above head
   const markerGeo = new THREE.RingGeometry(0.3, 0.35, 16);
@@ -92,6 +107,7 @@ export function createPlayer() {
   playerMesh = group;
   playerMesh.scale.set(1.5, 1.5, 1.5); // Larger for visibility
   playerMesh.position.copy(position);
+  playerMesh.rotation.y = lastFacing;
   scene.add(playerMesh);
 
   return group;
@@ -176,6 +192,55 @@ export function updatePlayer(delta) {
 
   playerMesh.position.copy(position);
 
+  const body = playerMesh.getObjectByName("body");
+  const head = playerMesh.getObjectByName("head");
+  const legL = playerMesh.getObjectByName("legL");
+  const legR = playerMesh.getObjectByName("legR");
+
+  const dt = Math.max(0.000001, delta);
+  const movedX = position.x - prevX;
+  const movedZ = position.z - prevZ;
+  const moveSpeed = Math.sqrt(movedX * movedX + movedZ * movedZ) / dt;
+  const moving = moveSpeed > 0.15;
+
+  if (moving) {
+    lastFacing = Math.atan2(movedX, movedZ);
+  }
+
+  const lerp = 1 - Math.pow(0.001, delta);
+  playerMesh.rotation.y = THREE.MathUtils.lerp(playerMesh.rotation.y, lastFacing, lerp);
+
+  if (moving && !isJumping) {
+    const stepRate = THREE.MathUtils.clamp(moveSpeed / SPEED_LAND, 0.2, 1.2) * 11;
+    walkPhase += delta * stepRate;
+    const swing = Math.sin(walkPhase) * 1.05;
+    const bob = Math.abs(Math.sin(walkPhase)) * 0.12;
+    const sway = Math.sin(walkPhase * 0.5) * 0.09;
+
+    if (legL) legL.rotation.x = THREE.MathUtils.lerp(legL.rotation.x, swing, lerp);
+    if (legR) legR.rotation.x = THREE.MathUtils.lerp(legR.rotation.x, -swing, lerp);
+
+    if (body) {
+      body.position.y = THREE.MathUtils.lerp(body.position.y, (body.userData.baseY ?? 0.4) + bob, lerp);
+      body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, sway, lerp);
+    }
+    if (head) {
+      head.position.y = THREE.MathUtils.lerp(head.position.y, (head.userData.baseY ?? 0.85) + bob * 0.6, lerp);
+      head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, -sway * 0.5, lerp);
+    }
+  } else {
+    if (legL) legL.rotation.x = THREE.MathUtils.lerp(legL.rotation.x, 0, lerp);
+    if (legR) legR.rotation.x = THREE.MathUtils.lerp(legR.rotation.x, 0, lerp);
+    if (body) {
+      body.position.y = THREE.MathUtils.lerp(body.position.y, body.userData.baseY ?? 0.4, lerp);
+      body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, 0, lerp);
+    }
+    if (head) {
+      head.position.y = THREE.MathUtils.lerp(head.position.y, head.userData.baseY ?? 0.85, lerp);
+      head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, 0, lerp);
+    }
+  }
+
   // Animate marker
   const marker = playerMesh.getObjectByName("playerMarker");
   if (marker) {
@@ -244,6 +309,7 @@ export function resetPlayer() {
   position.set(0, 0.5, 0);
   isJumping = false;
   jumpVelocity = 0;
+  walkPhase = 0;
   playerMesh.position.copy(position);
 }
 export function getPlayerMesh() {
