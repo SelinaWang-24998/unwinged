@@ -24,10 +24,12 @@ let isJumping = false;
 let jumpVelocity = 0;
 const SPEED_LAND = 6; // tiles/sec
 const SPEED_WATER = 3; // tiles/sec
-const JUMP_FORCE = 5;
-const GRAVITY = 12;
+const JUMP_FORCE = 2;
+const GRAVITY = 20;
 let walkPhase = 0;
 let lastFacing = 0;
+const AUTO_STEP_UP = 0.7;
+const JUMP_STEP_UP = 1.3;
 
 // Input state
 const keys = {};
@@ -115,10 +117,10 @@ export function createPlayer() {
 
 export function updatePlayer(delta) {
   let speed = SPEED_LAND;
-  const gx = Math.round(position.x / TILE);
-  const gz = Math.round(position.z / TILE);
+  const startGX = Math.round(position.x / TILE);
+  const startGZ = Math.round(position.z / TILE);
 
-  if (!isLand(gx, gz) && isInShallowWater(gx, gz, isLand)) {
+  if (!isLand(startGX, startGZ) && isInShallowWater(startGX, startGZ, isLand)) {
     speed = SPEED_WATER;
   }
 
@@ -133,6 +135,13 @@ export function updatePlayer(delta) {
   // Joystick input
   moveX += joystickInput.x;
   moveZ += joystickInput.z;
+
+  const wantsJump = (keys["Space"] || keys["KeyJ"]) && !isJumping;
+  if (wantsJump) {
+    isJumping = true;
+    jumpVelocity = JUMP_FORCE;
+    playJump();
+  }
 
   // Normalize
   const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
@@ -160,10 +169,33 @@ export function updatePlayer(delta) {
   const prevX = position.x;
   const prevZ = position.z;
 
-  position.x += moveX * speed * delta;
-  position.z += moveZ * speed * delta;
+  const attemptMove = (fromX, fromZ, toX, toZ, allowJumpStep) => {
+    const fromGX = Math.round(fromX / TILE);
+    const fromGZ = Math.round(fromZ / TILE);
+    const toGX = Math.round(toX / TILE);
+    const toGZ = Math.round(toZ / TILE);
+    const fromH = getTerrainHeight(fromGX, fromGZ);
+    const toH = getTerrainHeight(toGX, toGZ);
+    const dh = toH - fromH;
+    if (dh <= AUTO_STEP_UP) return { x: toX, z: toZ };
+    if (allowJumpStep && dh <= JUMP_STEP_UP) return { x: toX, z: toZ };
+    if (dh > 0) return { x: fromX, z: fromZ };
+    return { x: toX, z: toZ };
+  };
+
+  const allowJumpStep = isJumping || wantsJump;
+  const nextX = position.x + moveX * speed * delta;
+  const nextZ = position.z + moveZ * speed * delta;
+  const r1 = attemptMove(position.x, position.z, nextX, position.z, allowJumpStep);
+  position.x = r1.x;
+  position.z = r1.z;
+  const r2 = attemptMove(position.x, position.z, position.x, nextZ, allowJumpStep);
+  position.x = r2.x;
+  position.z = r2.z;
 
   // Wave push force when in water
+  const gx = Math.round(position.x / TILE);
+  const gz = Math.round(position.z / TILE);
   if (!isLand(gx, gz) && isInShallowWater(gx, gz, isLand)) {
     const waveForce = getWaveForce(position.x, position.z, delta);
     position.x += waveForce.x;
@@ -182,13 +214,6 @@ export function updatePlayer(delta) {
   // Clamp to grid
   position.x = Math.max(-HALF + 0.5, Math.min(HALF - 0.5, position.x));
   position.z = Math.max(-HALF + 0.5, Math.min(HALF - 0.5, position.z));
-
-  // Jump
-  if ((keys["Space"] || keys["KeyJ"]) && !isJumping) {
-    isJumping = true;
-    jumpVelocity = JUMP_FORCE;
-    playJump();
-  }
 
   // Jump physics
   if (isJumping) {
