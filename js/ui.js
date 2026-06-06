@@ -18,7 +18,31 @@ let firstMoveTriggered = false;
 // DOM elements
 let scoreEl, livesEl, timerEl, modeLabel, startScreen, endScreen;
 let endTitle, endScore, endJournalHint, restartBtn, startBtn;
+let countdownOverlay, countdownNumber;
 let isMobile = false;
+
+// 3-2-1 countdown before game starts
+function startCountdown() {
+  let count = 3;
+  countdownOverlay.classList.remove('hidden');
+  countdownNumber.textContent = count;
+
+  const interval = setInterval(() => {
+    count--;
+    if (count > 0) {
+      countdownNumber.textContent = count;
+      // Re-trigger pop animation
+      countdownNumber.style.animation = 'none';
+      void countdownNumber.offsetHeight; // force reflow
+      countdownNumber.style.animation = 'countPop 0.6s ease-out';
+    } else {
+      clearInterval(interval);
+      countdownOverlay.classList.add('hidden');
+      gameRunning = true;
+      if (onStartCallback) onStartCallback();
+    }
+  }, 1000);
+}
 
 export function initUI() {
   scoreEl = document.getElementById('score');
@@ -32,6 +56,8 @@ export function initUI() {
   endJournalHint = document.getElementById('end-journal-hint');
   restartBtn = document.getElementById('restart-btn');
   startBtn = document.getElementById('start-btn');
+  countdownOverlay = document.getElementById('countdown-overlay');
+  countdownNumber = document.getElementById('countdown-number');
 
   // Detect mobile
   isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
@@ -39,11 +65,10 @@ export function initUI() {
     document.getElementById('mobile-controls')?.classList.remove('hidden');
   }
 
-  // Start button
+  // Start button — show countdown first
   startBtn.addEventListener('click', () => {
     startScreen.classList.add('hidden');
-    gameRunning = true;
-    if (onStartCallback) onStartCallback();
+    startCountdown();
   });
 
   // Restart button
@@ -69,8 +94,8 @@ export function initUI() {
     }
     if (e.code === 'Space') e.preventDefault();
 
-    // PC gyro: Ctrl+Arrow to simulate tilt
-    if (e.ctrlKey) {
+    // PC gyro: Alt+Arrow to simulate gyro tilt (mode B: terrain/wave)
+    if (e.altKey) {
       e.preventDefault();
       const dirMap = { ArrowUp: { x: 0, z: 1 }, ArrowDown: { x: 0, z: -1 }, ArrowLeft: { x: -1, z: 0 }, ArrowRight: { x: 1, z: 0 } };
       if (dirMap[e.code]) {
@@ -150,10 +175,9 @@ export function updateUI(delta) {
     timerEl.parentElement?.classList.add('warning');
   }
 
-  // Score display
-  scoreEl.textContent = getCollectedCount();
-
-  // Lives display
+  // Score / Lives display
+  score = getCollectedCount();
+  scoreEl.textContent = score;
   lives = 1 + score;
   livesEl.textContent = lives;
 
@@ -163,8 +187,10 @@ export function updateUI(delta) {
       consumeFragment();
       triggerJournal('first_caught');
       playAlert();
-      scoreEl.textContent = getCollectedCount();
-      livesEl.textContent = 1 + getCollectedCount();
+      score = getCollectedCount();
+      scoreEl.textContent = score;
+      lives = 1 + score;
+      livesEl.textContent = lives;
     } else {
       playGameOver();
       endGame(false);
@@ -218,6 +244,7 @@ export function resetUI() {
   timerEl.parentElement?.classList.remove('warning');
   endScreen.classList.add('hidden');
   startScreen.classList.remove('hidden');
+  if (countdownOverlay) countdownOverlay.classList.add('hidden');
 }
 
 export function getTimeRemaining() { return timeRemaining; }

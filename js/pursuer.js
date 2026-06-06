@@ -1,21 +1,25 @@
-import * as THREE from 'three';
-import { getScene, getTileSize, getGridSize } from './scene.js';
-import { getPlayerPosition } from './player.js';
-import { isLand } from './island.js';
+import * as THREE from "three";
+import { getScene, getTileSize, getGridSize } from "./scene.js";
+import { getPlayerPosition } from "./player.js";
+import { isLand } from "./island.js";
+import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
 
 const TILE = getTileSize();
 const GRID = getGridSize();
 const HALF = (GRID / 2) * TILE;
 const PATROL_SPEED = 2.5;
-const CHASE_SPEED = 3.6;
+const CHASE_SPEED = 4.0;   // was 0.036, now units/sec
 const VISION_RANGE = 8;
 const VISION_ANGLE = Math.PI * 0.6; // 120° cone
 const CHASE_DURATION = 6;
+const PATROL_POINTS_COUNT = 6;
+const PATROL_POINT_RADIUS_MIN = 2;
+const PATROL_POINT_RADIUS_MAX = 6;
 
 let pursuerMesh;
 let velocity = new THREE.Vector3();
 let position = new THREE.Vector3(3, 0.5, 3);
-let state = 'PATROL'; // PATROL | CHASE | GYRO_CONTROL
+let state = "PATROL"; // PATROL | CHASE | GYRO_CONTROL
 let patrolIndex = 0;
 let chaseTimer = 0;
 let caughtPlayer = false;
@@ -24,13 +28,37 @@ let caughtPlayer = false;
 let gyroTarget = null;
 let gyroMoveRemaining = 0;
 
-// Patrol waypoints
-const patrolPoints = [
-  new THREE.Vector3(3, 0, 3), new THREE.Vector3(3, 0, -3),
-  new THREE.Vector3(-3, 0, -3), new THREE.Vector3(-3, 0, 3),
-  new THREE.Vector3(0, 0, 5), new THREE.Vector3(5, 0, 0),
-  new THREE.Vector3(0, 0, -5), new THREE.Vector3(-5, 0, 0),
-];
+let patrolPoints = [];
+
+// Generate random patrol points on land/shallow water each game
+function generatePatrolPoints() {
+  patrolPoints = [];
+  for (let i = 0; i < PATROL_POINTS_COUNT; i++) {
+    let attempts = 0;
+    while (attempts < 50) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = PATROL_POINT_RADIUS_MIN + Math.random() * (PATROL_POINT_RADIUS_MAX - PATROL_POINT_RADIUS_MIN);
+      const x = Math.round(Math.cos(angle) * radius / TILE) * TILE;
+      const z = Math.round(Math.sin(angle) * radius / TILE) * TILE;
+      // Prefer land or shallow water
+      if (isLand(Math.round(x / TILE), Math.round(z / TILE)) || !isInDeepWater(Math.round(x / TILE), Math.round(z / TILE))) {
+        patrolPoints.push(new THREE.Vector3(x, 0, z));
+        break;
+      }
+      attempts++;
+    }
+    // Fallback: place anywhere on grid
+    if (patrolPoints.length <= i) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 3 + Math.random() * 3;
+      patrolPoints.push(new THREE.Vector3(
+        Math.cos(angle) * radius,
+        0,
+        Math.sin(angle) * radius
+      ));
+    }
+  }
+}
 
 export function createPursuer() {
   const scene = getScene();
@@ -72,29 +100,47 @@ export function createPursuer() {
   }
 
   // Vision cone indicator
-  const coneGeo = new THREE.ConeGeometry(VISION_RANGE * 0.4, VISION_RANGE * 0.6, 8, 1, true);
-  const coneMat = new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.08, side: THREE.DoubleSide });
+  const coneGeo = new THREE.ConeGeometry(
+    VISION_RANGE * 0.4,
+    VISION_RANGE * 0.6,
+    8,
+    1,
+    true,
+  );
+  const coneMat = new THREE.MeshBasicMaterial({
+    color: 0xff6666,
+    transparent: true,
+    opacity: 0.08,
+    side: THREE.DoubleSide,
+  });
   const cone = new THREE.Mesh(coneGeo, coneMat);
   cone.rotation.x = -Math.PI / 2;
   cone.position.set(0, 0.3, 0.3);
-  cone.name = 'visionCone';
+  cone.name = "visionCone";
   group.add(cone);
 
   // Floating warning marker
   const markerGeo = new THREE.RingGeometry(0.4, 0.45, 16);
-  const markerMat = new THREE.MeshBasicMaterial({ color: 0xff4444, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+  const markerMat = new THREE.MeshBasicMaterial({
+    color: 0xff4444,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9,
+  });
   const marker = new THREE.Mesh(markerGeo, markerMat);
   marker.rotation.x = -Math.PI / 2;
   marker.position.y = 1.0;
-  marker.name = 'pursuerMarker';
+  marker.name = "pursuerMarker";
   group.add(marker);
 
-  group.name = 'pursuer';
+  group.name = "pursuer";
   pursuerMesh = group;
   pursuerMesh.scale.set(1.3, 1.3, 1.3);
   position.y = getGroundY(position.x, position.z) + 0.5;
   pursuerMesh.position.copy(position);
   scene.add(pursuerMesh);
+
+  generatePatrolPoints();
 
   return group;
 }
@@ -105,52 +151,95 @@ function getGroundY(wx, wz) {
   if (isLand(gx, gz)) {
     // Find terrain height from island blocks
     const scene = getScene();
-    const island = scene.getObjectByName('island');
+    const island = scene.getObjectByName("island");
     if (island) {
       let maxY = 0;
-      island.children.forEach(c => {
-        if (Math.abs(c.position.x - gx * TILE) < 0.5 && Math.abs(c.position.z - gz * TILE) < 0.5) {
+      island.children.forEach((c) => {
+        if (
+          Math.abs(c.position.x - gx * TILE) < 0.5 &&
+          Math.abs(c.position.z - gz * TILE) < 0.5
+        ) {
           maxY = Math.max(maxY, c.position.y + 0.3);
         }
       });
       return maxY;
     }
   }
-  return 0;
+  // In water: return water surface height
+  return -0.15;
 }
 
 export function updatePursuer(delta) {
+  const prevX = position.x;
+  const prevZ = position.z;
   const playerPos = getPlayerPosition();
 
   // Check vision
-  if (state !== 'GYRO_CONTROL') {
+  if (state !== "GYRO_CONTROL") {
     const toPlayer = playerPos.clone().sub(position);
     const dist = toPlayer.length();
     toPlayer.y = 0;
     toPlayer.normalize();
 
-    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(pursuerMesh.quaternion);
-    forward.y = 0; forward.normalize();
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(
+      pursuerMesh.quaternion,
+    );
+    forward.y = 0;
+    forward.normalize();
     const dot = forward.dot(toPlayer);
     const angle = Math.acos(Math.min(1, Math.max(-1, dot)));
 
     if (dist < VISION_RANGE && angle < VISION_ANGLE / 2) {
-      state = 'CHASE';
-      chaseTimer = CHASE_DURATION;
+      // Occlusion check: raycast from pursuer to player
+      let occluded = false;
+      const scene = getScene();
+      const island = scene.getObjectByName("island");
+      if (island) {
+        const rayDir = playerPos.clone().sub(position).normalize();
+        const rayLen = dist;
+        for (let step = 0.5; step < rayLen; step += 0.5) {
+          const sx = Math.round((position.x + rayDir.x * step) / TILE);
+          const sz = Math.round((position.z + rayDir.z * step) / TILE);
+          if (isLand(sx, sz)) {
+            const blockY = getGroundY(position.x + rayDir.x * step, position.z + rayDir.z * step);
+            if (blockY > position.y) { occluded = true; break; }
+          }
+        }
+      }
+      if (!occluded) {
+        state = "CHASE";
+        chaseTimer = CHASE_DURATION;
+      }
     }
   }
 
   // State behavior
   switch (state) {
-    case 'PATROL':
+    case "PATROL":
       patrol(delta);
       break;
-    case 'CHASE':
+    case "CHASE":
       chase(delta, playerPos);
       break;
-    case 'GYRO_CONTROL':
+    case "GYRO_CONTROL":
       gyroMove(delta);
       break;
+  }
+
+  // Wave push force when pursuer is in shallow water
+  const pgx = Math.round(position.x / TILE);
+  const pgz = Math.round(position.z / TILE);
+  if (!isLand(pgx, pgz) && isInShallowWater(pgx, pgz, isLand)) {
+    const waveForce = getWaveForce(position.x, position.z, delta);
+    position.x += waveForce.x;
+    position.z += waveForce.z;
+  }
+
+  // Deep water boundary — push pursuer back toward island (soft boundary)
+  if (isInDeepWater(pgx, pgz)) {
+    const pushDir = new THREE.Vector3(-position.x, 0, -position.z).normalize();
+    position.x += pushDir.x * 2.5 * delta;
+    position.z += pushDir.z * 2.5 * delta;
   }
 
   // Ground level
@@ -170,15 +259,15 @@ export function updatePursuer(delta) {
   }
 
   // Update vision cone
-  const cone = pursuerMesh.getObjectByName('visionCone');
-  if (cone && state === 'CHASE') {
+  const cone = pursuerMesh.getObjectByName("visionCone");
+  if (cone && state === "CHASE") {
     cone.material.opacity = 0.15;
   } else if (cone) {
     cone.material.opacity = 0.08;
   }
 
   // Animate marker
-  const marker = pursuerMesh.getObjectByName('pursuerMarker');
+  const marker = pursuerMesh.getObjectByName("pursuerMarker");
   if (marker) {
     marker.position.y = 1.0 + Math.sin(performance.now() * 0.005) * 0.12;
     marker.rotation.z += delta * 0.3;
@@ -204,7 +293,7 @@ function patrol(delta) {
 function chase(delta, playerPos) {
   chaseTimer -= delta;
   if (chaseTimer <= 0) {
-    state = 'PATROL';
+    state = "PATROL";
     return;
   }
   const dir = playerPos.clone().sub(position);
@@ -220,7 +309,7 @@ function chase(delta, playerPos) {
 
 function gyroMove(delta) {
   if (!gyroTarget || gyroMoveRemaining <= 0) {
-    state = 'PATROL';
+    state = "PATROL";
     gyroTarget = null;
     return;
   }
@@ -233,29 +322,37 @@ function gyroMove(delta) {
 
 // Gyro Mode A: move pursuer based on tilt
 export function gyroControlPursuer(tiltX, tiltZ, intensity) {
-  if (state === 'CHASE') return; // Can't override chase
-  state = 'GYRO_CONTROL';
+  if (state === "CHASE") return; // Can't override chase
+  state = "GYRO_CONTROL";
   const maxDist = 3 * TILE;
   gyroMoveRemaining = maxDist * intensity; // intensity from tilt angle
   gyroTarget = new THREE.Vector3(tiltX, 0, tiltZ).normalize();
 }
 
-export function getPursuerPosition() { return position.clone(); }
+export function getPursuerPosition() {
+  return position.clone();
+}
 export function getPursuerGridPos() {
   return { x: Math.round(position.x / TILE), z: Math.round(position.z / TILE) };
 }
 export function wasPlayerCaught() {
-  if (caughtPlayer) { caughtPlayer = false; return true; }
+  if (caughtPlayer) {
+    caughtPlayer = false;
+    return true;
+  }
   return false;
 }
-export function isChasing() { return state === 'CHASE'; }
+export function isChasing() {
+  return state === "CHASE";
+}
 export function resetPursuer() {
   position.set(3, 0.5, 3);
-  state = 'PATROL';
+  state = "PATROL";
   patrolIndex = 0;
   chaseTimer = 0;
   gyroTarget = null;
   gyroMoveRemaining = 0;
   caughtPlayer = false;
+  generatePatrolPoints();
   pursuerMesh.position.copy(position);
 }

@@ -1,23 +1,46 @@
 import * as THREE from 'three';
 import { getScene, getGridSize, getTileSize } from './scene.js';
+import { isLand } from './island.js';
 
 let waterMesh;
 let waveOffset = 0;
 const GRID = getGridSize();
 const TILE = getTileSize();
 
+// Wave force state — continuous sinusoidal push
+let waveForceDir = new THREE.Vector3(1, 0, 0.5).normalize(); // wave propagation direction
+let waveForcePhase = 0;
+const WAVE_FORCE_STRENGTH = 1.2; // base push strength (units/sec)
+const WAVE_FORCE_PERIOD = 4.0;   // seconds per full wave cycle
+
 export function createOcean() {
   const scene = getScene();
   const half = (GRID / 2) * TILE;
 
-  // Water plane slightly below ground level
-  const geo = new THREE.PlaneGeometry(GRID * TILE, GRID * TILE, GRID * 2, GRID * 2);
-  const mat = new THREE.MeshPhongMaterial({
+  // Shallow water ring (radius ~8 from center)
+  const shallowGeo = new THREE.RingGeometry(0.5, 8 * TILE, 64);
+  const shallowMat = new THREE.MeshPhongMaterial({
     color: 0x3388cc,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.45,
     specular: 0x88bbff,
     shininess: 60,
+    side: THREE.DoubleSide,
+  });
+  const shallowRing = new THREE.Mesh(shallowGeo, shallowMat);
+  shallowRing.rotation.x = -Math.PI / 2;
+  shallowRing.position.y = -0.14;
+  shallowRing.name = 'shallowWater';
+  scene.add(shallowRing);
+
+  // Full water plane (deep color base)
+  const geo = new THREE.PlaneGeometry(GRID * TILE, GRID * TILE, GRID * 2, GRID * 2);
+  const mat = new THREE.MeshPhongMaterial({
+    color: 0x1a3d6e,
+    transparent: true,
+    opacity: 0.65,
+    specular: 0x4477aa,
+    shininess: 40,
     side: THREE.DoubleSide,
   });
   waterMesh = new THREE.Mesh(geo, mat);
@@ -53,6 +76,13 @@ export function updateOcean(delta) {
       r.position.y = -0.1 + Math.sin(waveOffset * r.userData.speed) * r.userData.amp;
     });
   }
+  // Animate shallow water ring gentle bob
+  const shallow = scene.getObjectByName('shallowWater');
+  if (shallow) {
+    shallow.position.y = -0.14 + Math.sin(waveOffset * 0.8) * 0.02;
+  }
+  // Rotate wave direction slowly
+  updateWaveDirection(delta);
 }
 
 // Create wave effect (called by gyro mode B on sea)
@@ -90,9 +120,41 @@ export function isInShallowWater(gx, gz, isLandFn) {
   if (Math.abs(gx) > half || Math.abs(gz) > half) return false;
   // Not on land
   if (isLandFn && isLandFn(gx, gz)) return false;
-  // Within 4 tiles of center island area
+  // Within 8 tiles of center = shallow water
   const dist = Math.sqrt(gx * gx + gz * gz);
   return dist < 8;
+}
+
+// Deep water: beyond 8 tiles from center and not on land
+export function isInDeepWater(gx, gz) {
+  const half = (GRID / 2);
+  if (Math.abs(gx) > half || Math.abs(gz) > half) return true;
+  if (isLand(gx, gz)) return false;
+  const dist = Math.sqrt(gx * gx + gz * gz);
+  return dist >= 8;
+}
+
+// Get wave force at a world position (returns THREE.Vector3)
+// This creates a continuous sinusoidal push that oscillates direction
+export function getWaveForce(wx, wz, delta) {
+  waveForcePhase += delta * (2 * Math.PI / WAVE_FORCE_PERIOD);
+
+  // Position-dependent phase: waves travel across the water surface
+  const spatialPhase = (wx * waveForceDir.x + wz * waveForceDir.z) * 0.3;
+  const forceMagnitude = Math.sin(waveForcePhase + spatialPhase) * WAVE_FORCE_STRENGTH;
+
+  const force = new THREE.Vector3(
+    waveForceDir.x * forceMagnitude * delta,
+    0,
+    waveForceDir.z * forceMagnitude * delta
+  );
+  return force;
+}
+
+// Slowly rotate wave direction over time for variety
+export function updateWaveDirection(delta) {
+  const angle = Math.sin(waveForcePhase * 0.1) * 0.5; // gentle oscillation
+  waveForceDir.set(Math.cos(angle), 0, Math.sin(angle)).normalize();
 }
 
 export function getWaterMesh() { return waterMesh; }

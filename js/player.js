@@ -1,10 +1,17 @@
-import * as THREE from 'three';
-import { getScene, getTileSize, getGridSize } from './scene.js';
-import { isLand, getTerrainHeight, canPlaceBlock, canRemoveBlock, placeBlock, removeBlock } from './island.js';
-import { isInShallowWater } from './ocean.js';
-import { spawnDustParticles, spawnSplashParticles } from './particles.js';
-import { playTerrainDeform, playSplash, playJump } from './audio.js';
-import { triggerJournal, hasTriggered } from './journal.js';
+import * as THREE from "three";
+import { getScene, getTileSize, getGridSize } from "./scene.js";
+import {
+  isLand,
+  getTerrainHeight,
+  canPlaceBlock,
+  canRemoveBlock,
+  placeBlock,
+  removeBlock,
+} from "./island.js";
+import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
+import { spawnDustParticles, spawnSplashParticles } from "./particles.js";
+import { playTerrainDeform, playSplash, playJump } from "./audio.js";
+import { triggerJournal, hasTriggered } from "./journal.js";
 
 const TILE = getTileSize();
 const GRID = getGridSize();
@@ -15,8 +22,8 @@ let position = new THREE.Vector3(0, 0.5, 0);
 let velocity = new THREE.Vector3();
 let isJumping = false;
 let jumpVelocity = 0;
-const SPEED_LAND = 6;   // tiles/sec
-const SPEED_WATER = 3;  // tiles/sec
+const SPEED_LAND = 6; // tiles/sec
+const SPEED_WATER = 3; // tiles/sec
 const JUMP_FORCE = 5;
 const GRAVITY = 12;
 
@@ -55,23 +62,33 @@ export function createPlayer() {
 
   // Floating marker above head
   const markerGeo = new THREE.RingGeometry(0.3, 0.35, 16);
-  const markerMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+  const markerMat = new THREE.MeshBasicMaterial({
+    color: 0x00ff88,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9,
+  });
   const marker = new THREE.Mesh(markerGeo, markerMat);
   marker.rotation.x = -Math.PI / 2;
   marker.position.y = 1.2;
-  marker.name = 'playerMarker';
+  marker.name = "playerMarker";
   group.add(marker);
 
   // Shadow disc
   const shadowGeo = new THREE.CircleGeometry(0.3, 8);
-  const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+  const shadowMat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.DoubleSide,
+  });
   const shadow = new THREE.Mesh(shadowGeo, shadowMat);
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.02;
-  shadow.name = 'playerShadow';
+  shadow.name = "playerShadow";
   group.add(shadow);
 
-  group.name = 'player';
+  group.name = "player";
   playerMesh = group;
   playerMesh.scale.set(1.5, 1.5, 1.5); // Larger for visibility
   playerMesh.position.copy(position);
@@ -90,11 +107,12 @@ export function updatePlayer(delta) {
   }
 
   // Movement from keyboard
-  let moveX = 0, moveZ = 0;
-  if (keys['KeyW'] || keys['ArrowUp']) moveZ = 1;
-  if (keys['KeyS'] || keys['ArrowDown']) moveZ = -1;
-  if (keys['KeyA'] || keys['ArrowLeft']) moveX = -1;
-  if (keys['KeyD'] || keys['ArrowRight']) moveX = 1;
+  let moveX = 0,
+    moveZ = 0;
+  if (keys["KeyW"] || keys["ArrowUp"]) moveZ = 1;
+  if (keys["KeyS"] || keys["ArrowDown"]) moveZ = -1;
+  if (keys["KeyA"] || keys["ArrowLeft"]) moveX = -1;
+  if (keys["KeyD"] || keys["ArrowRight"]) moveX = 1;
 
   // Joystick input
   moveX += joystickInput.x;
@@ -102,17 +120,39 @@ export function updatePlayer(delta) {
 
   // Normalize
   const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-  if (len > 1) { moveX /= len; moveZ /= len; }
+  if (len > 1) {
+    moveX /= len;
+    moveZ /= len;
+  }
+
+  const prevX = position.x;
+  const prevZ = position.z;
 
   position.x += moveX * speed * delta;
   position.z += moveZ * speed * delta;
+
+  // Wave push force when in water
+  if (!isLand(gx, gz) && isInShallowWater(gx, gz, isLand)) {
+    const waveForce = getWaveForce(position.x, position.z, delta);
+    position.x += waveForce.x;
+    position.z += waveForce.z;
+  }
+
+  // Deep water boundary — push player back toward island (soft boundary)
+  if (
+    isInDeepWater(Math.round(position.x / TILE), Math.round(position.z / TILE))
+  ) {
+    const pushDir = new THREE.Vector3(-position.x, 0, -position.z).normalize();
+    position.x += pushDir.x * SPEED_WATER * delta * 1.0;
+    position.z += pushDir.z * SPEED_WATER * delta * 1.0;
+  }
 
   // Clamp to grid
   position.x = Math.max(-HALF + 0.5, Math.min(HALF - 0.5, position.x));
   position.z = Math.max(-HALF + 0.5, Math.min(HALF - 0.5, position.z));
 
   // Jump
-  if ((keys['Space'] || keys['KeyJ']) && !isJumping) {
+  if ((keys["Space"] || keys["KeyJ"]) && !isJumping) {
     isJumping = true;
     jumpVelocity = JUMP_FORCE;
     playJump();
@@ -137,37 +177,49 @@ export function updatePlayer(delta) {
   playerMesh.position.copy(position);
 
   // Animate marker
-  const marker = playerMesh.getObjectByName('playerMarker');
+  const marker = playerMesh.getObjectByName("playerMarker");
   if (marker) {
     marker.position.y = 1.2 + Math.sin(performance.now() * 0.004) * 0.15;
     marker.rotation.z += delta * 0.5;
   }
 
   // Shadow stays on ground
-  const shadow = playerMesh.getObjectByName('playerShadow');
+  const shadow = playerMesh.getObjectByName("playerShadow");
   if (shadow) {
     shadow.position.y = getTerrainHeight(gx, gz) + 0.03 - position.y;
   }
 }
 
-export function getPlayerPosition() { return position.clone(); }
+export function getPlayerPosition() {
+  return position.clone();
+}
 export function getPlayerGridPos() {
   return { x: Math.round(position.x / TILE), z: Math.round(position.z / TILE) };
 }
-export function setKey(code, pressed) { keys[code] = pressed; }
-export function setJoystick(x, z) { joystickInput.x = x; joystickInput.z = z; }
-export function triggerJump() { if (!isJumping) { isJumping = true; jumpVelocity = JUMP_FORCE; } }
+export function setKey(code, pressed) {
+  keys[code] = pressed;
+}
+export function setJoystick(x, z) {
+  joystickInput.x = x;
+  joystickInput.z = z;
+}
+export function triggerJump() {
+  if (!isJumping) {
+    isJumping = true;
+    jumpVelocity = JUMP_FORCE;
+  }
+}
 export function grabBlock() {
   const gp = getPlayerGridPos();
   const gx = gp.x;
   const gz = gp.z;
-  
+
   if (isLand(gx, gz)) {
     // On land: try to place or remove block
     if (canPlaceBlock(gx, gz)) {
       if (placeBlock(gx, gz)) {
-        if (!hasTriggered('first_stack')) {
-          triggerJournal('first_stack');
+        if (!hasTriggered("first_stack")) {
+          triggerJournal("first_stack");
         }
         playTerrainDeform();
         spawnDustParticles(position.x, position.y + 0.5, position.z, 6);
@@ -194,4 +246,6 @@ export function resetPlayer() {
   jumpVelocity = 0;
   playerMesh.position.copy(position);
 }
-export function getPlayerMesh() { return playerMesh; }
+export function getPlayerMesh() {
+  return playerMesh;
+}
