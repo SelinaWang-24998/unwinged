@@ -13,6 +13,7 @@ const VISION_ANGLE = Math.PI * 0.6; // 120° cone
 const CHASE_DURATION = 6;
 
 let pursuerMesh;
+let velocity = new THREE.Vector3();
 let position = new THREE.Vector3(3, 0.5, 3);
 let state = 'PATROL'; // PATROL | CHASE | GYRO_CONTROL
 let patrolIndex = 0;

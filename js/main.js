@@ -15,16 +15,19 @@ import { playCollect, playSplash, playAlert, playVictory, playGameOver, initAudi
 let clock;
 let gameLoopId = null;
 
-// Clean up old scene objects
+// Clean up old scene objects AND old canvas
 function cleanupScene() {
   const scene = getScene();
   ['player', 'pursuer', 'island', 'fragments', 'ripples'].forEach(name => {
     const obj = scene.getObjectByName(name);
     if (obj) scene.remove(obj);
   });
-  // Remove ocean (water mesh)
   const ocean = scene.getObjectByName('ocean');
   if (ocean) scene.remove(ocean);
+
+  // Remove old canvas to avoid duplicates
+  const oldCanvas = document.querySelector('#game-container canvas');
+  if (oldCanvas) oldCanvas.remove();
 }
 
 // Build a fresh game world
@@ -92,30 +95,38 @@ startBgLoop();
 
 // Start handler
 onStart(() => {
-  cleanupScene();
-  initScene(container);
-  clock = new THREE.Clock();
-  buildWorld();
+  try {
+    console.log('[DEBUG] Game starting...');
+    cleanupScene();
+    initScene(container);
+    clock = new THREE.Clock();
+    buildWorld();
+    console.log('[DEBUG] World built, creating player...');
 
-  createPlayer();
-  createPursuer();
-  initGyro();
-  initJournal();
+    createPlayer();
+    console.log('[DEBUG] Player created, creating pursuer...');
+    createPursuer();
+    console.log('[DEBUG] Pursuer created, initializing gyro...');
+    initGyro();
+    initJournal();
+    console.log('[DEBUG] Game start complete, entering game loop');
 
-  onFragmentCollected((id, count) => {
-    if (count === 1) triggerJournal('first_fragment');
-    if (count >= 3) {
-      endGame(true);
-      playVictory();
-    } else {
-      playCollect();
-      // Spawn collect particles
-      const pos = getPlayerPosition();
-      spawnCollectParticles(pos.x, pos.y + 1, pos.z);
-    }
-  });
+    onFragmentCollected((id, count) => {
+      if (count === 1) triggerJournal('first_fragment');
+      if (count >= 3) {
+        endGame(true);
+        playVictory();
+      } else {
+        playCollect();
+        const pos = getPlayerPosition();
+        spawnCollectParticles(pos.x, pos.y + 1, pos.z);
+      }
+    });
 
-  startGameLoop();
+    startGameLoop();
+  } catch (err) {
+    console.error('[DEBUG] Game start failed:', err);
+  }
 });
 
 // Restart handler
