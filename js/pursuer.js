@@ -1,20 +1,24 @@
 import * as THREE from "three";
 import { getScene, getTileSize, getGridSize } from "./scene.js";
 import { getPlayerPosition } from "./player.js";
-import { isLand, getCoverHeight } from "./island.js";
+import { isLand, getCoverHeight, getTerrainHeight } from "./island.js";
 import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
 
 const TILE = getTileSize();
 const GRID = getGridSize();
 const HALF = (GRID / 2) * TILE;
-const PATROL_SPEED = 1.5;
-const CHASE_SPEED = 0.1; // was 0.036, now units/sec
+const PATROL_SPEED = 2;
+const CHASE_SPEED = 3; // was 0.036, now units/sec
 const VISION_RANGE = 8;
 const VISION_ANGLE = Math.PI * 0.6; // 120° cone
-const CHASE_DURATION = 6;
+const CHASE_DURATION = 4;
 const PATROL_POINTS_COUNT = 6;
 const PATROL_POINT_RADIUS_MIN = 6;
 const PATROL_POINT_RADIUS_MAX = 16;
+const AUTO_STEP_UP = 0.7;
+const JUMP_STEP_UP = 1.3;
+const JUMP_FORCE = 2;
+const GRAVITY = 20;
 
 let pursuerMesh;
 let velocity = new THREE.Vector3();
@@ -32,6 +36,8 @@ let patrolPoints = [];
 let gaitPhase = 0;
 let legMeshes = [];
 let bodyMesh = null;
+let isJumping = false;
+let jumpVelocity = 0;
 
 // Generate random patrol points on land/shallow water each game
 function generatePatrolPoints() {
@@ -170,24 +176,29 @@ function getGroundY(wx, wz) {
   const gx = Math.round(wx / TILE);
   const gz = Math.round(wz / TILE);
   if (isLand(gx, gz)) {
-    // Find terrain height from island blocks
-    const scene = getScene();
-    const island = scene.getObjectByName("island");
-    if (island) {
-      let maxY = 0;
-      island.children.forEach((c) => {
-        if (
-          Math.abs(c.position.x - gx * TILE) < 0.5 &&
-          Math.abs(c.position.z - gz * TILE) < 0.5
-        ) {
-          maxY = Math.max(maxY, c.position.y + 0.3);
-        }
-      });
-      return maxY;
-    }
+    return getTerrainHeight(gx, gz);
   }
-  // In water: return water surface height
   return -0.15;
+}
+
+function attemptMove(fromX, fromZ, toX, toZ, allowJumpStep) {
+  const fromGX = Math.round(fromX / TILE);
+  const fromGZ = Math.round(fromZ / TILE);
+  const toGX = Math.round(toX / TILE);
+  const toGZ = Math.round(toZ / TILE);
+  if (fromGX === toGX && fromGZ === toGZ) return { x: toX, z: toZ, jump: false };
+
+  const fromH = isLand(fromGX, fromGZ) ? getTerrainHeight(fromGX, fromGZ) : -0.15;
+  const toH = isLand(toGX, toGZ) ? getTerrainHeight(toGX, toGZ) : -0.15;
+  const dh = toH - fromH;
+
+  if (dh <= AUTO_STEP_UP) return { x: toX, z: toZ, jump: false };
+  if (dh <= JUMP_STEP_UP) {
+    if (allowJumpStep) return { x: toX, z: toZ, jump: false };
+    return { x: toX, z: toZ, jump: true };
+  }
+  if (dh > 0) return { x: fromX, z: fromZ, jump: false };
+  return { x: toX, z: toZ, jump: false };
 }
 
 export function updatePursuer(delta) {
@@ -273,8 +284,18 @@ export function updatePursuer(delta) {
     position.z += pushDir.z * 2.5 * delta;
   }
 
-  // Ground level
-  position.y = getGroundY(position.x, position.z) + 0.5;
+  if (isJumping) {
+    position.y += jumpVelocity * delta;
+    jumpVelocity -= GRAVITY * delta;
+    const groundY = getGroundY(position.x, position.z) + 0.5;
+    if (position.y <= groundY) {
+      position.y = groundY;
+      isJumping = false;
+      jumpVelocity = 0;
+    }
+  } else {
+    position.y = getGroundY(position.x, position.z) + 0.5;
+  }
   pursuerMesh.position.copy(position);
 
   // Face movement direction
@@ -359,8 +380,19 @@ function patrol(delta) {
   } else {
     dir.normalize();
     velocity.copy(dir.multiplyScalar(PATROL_SPEED * delta));
-    position.x += velocity.x;
-    position.z += velocity.z;
+    const nextX = position.x + velocity.x;
+    const nextZ = position.z + velocity.z;
+    let jumpTriggered = false;
+    const r1 = attemptMove(position.x, position.z, nextX, position.z, isJumping);
+    if (r1.jump) jumpTriggered = true;
+    position.x = r1.x;
+    const r2 = attemptMove(position.x, position.z, position.x, nextZ, isJumping || jumpTriggered);
+    if (r2.jump) jumpTriggered = true;
+    position.z = r2.z;
+    if (jumpTriggered && !isJumping) {
+      isJumping = true;
+      jumpVelocity = JUMP_FORCE;
+    }
   }
 }
 
@@ -376,8 +408,19 @@ function chase(delta, playerPos) {
   if (dist > 0.2) {
     dir.normalize();
     velocity.copy(dir.multiplyScalar(CHASE_SPEED * delta));
-    position.x += velocity.x;
-    position.z += velocity.z;
+    const nextX = position.x + velocity.x;
+    const nextZ = position.z + velocity.z;
+    let jumpTriggered = false;
+    const r1 = attemptMove(position.x, position.z, nextX, position.z, isJumping);
+    if (r1.jump) jumpTriggered = true;
+    position.x = r1.x;
+    const r2 = attemptMove(position.x, position.z, position.x, nextZ, isJumping || jumpTriggered);
+    if (r2.jump) jumpTriggered = true;
+    position.z = r2.z;
+    if (jumpTriggered && !isJumping) {
+      isJumping = true;
+      jumpVelocity = JUMP_FORCE;
+    }
   }
 }
 
@@ -389,8 +432,19 @@ function gyroMove(delta) {
   }
   const dir = gyroTarget.clone();
   const moveSpeed = 5 * delta;
-  position.x += dir.x * moveSpeed;
-  position.z += dir.z * moveSpeed;
+  const nextX = position.x + dir.x * moveSpeed;
+  const nextZ = position.z + dir.z * moveSpeed;
+  let jumpTriggered = false;
+  const r1 = attemptMove(position.x, position.z, nextX, position.z, isJumping);
+  if (r1.jump) jumpTriggered = true;
+  position.x = r1.x;
+  const r2 = attemptMove(position.x, position.z, position.x, nextZ, isJumping || jumpTriggered);
+  if (r2.jump) jumpTriggered = true;
+  position.z = r2.z;
+  if (jumpTriggered && !isJumping) {
+    isJumping = true;
+    jumpVelocity = JUMP_FORCE;
+  }
   gyroMoveRemaining -= moveSpeed;
 }
 
@@ -421,6 +475,8 @@ export function isChasing() {
 }
 export function resetPursuer() {
   position.set(3, 0.5, 3);
+  isJumping = false;
+  jumpVelocity = 0;
   state = "PATROL";
   patrolIndex = 0;
   chaseTimer = 0;

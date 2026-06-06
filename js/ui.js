@@ -5,7 +5,7 @@ import {
 } from "./fragments.js";
 import { wasPlayerCaught, isChasing } from "./pursuer.js";
 import { toggleGyroMode, getGyroMode } from "./gyro.js";
-import { setKey, setJoystick, triggerJump, grabBlock } from "./player.js";
+import { setKey, setJoystick, triggerJump, placeBlockAction, grabBlockAction } from "./player.js";
 import { triggerJournal } from "./journal.js";
 import { showReview, hideReview, isReviewVisible } from "./journal.js";
 import { playAlert, playVictory, playGameOver } from "./audio.js";
@@ -140,7 +140,10 @@ export function initUI() {
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
     }
     if (e.code === "KeyE") {
-      grabBlock();
+      placeBlockAction();
+    }
+    if (e.code === "KeyF") {
+      grabBlockAction();
     }
     if (e.code === "Tab") {
       e.preventDefault();
@@ -229,8 +232,11 @@ function setupMobileButtons() {
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
   });
   document
+    .getElementById("btn-place")
+    ?.addEventListener("pointerdown", placeBlockAction);
+  document
     .getElementById("btn-grab")
-    ?.addEventListener("pointerdown", grabBlock);
+    ?.addEventListener("pointerdown", grabBlockAction);
 }
 
 // === Orientation Lock Guards ===

@@ -213,7 +213,8 @@ export function modifyTerrainHeight(gx, gz, deltaY) {
 }
 
 // === Block Stacking / Building System ===
-const STACKABLE_HEIGHT = 6; // Max stack height
+const STACKABLE_HEIGHT = 5;
+const MIN_STACK_HEIGHT = 1;
 
 // Place a new block on top of existing terrain
 export function placeBlock(gx, gz) {
@@ -222,15 +223,13 @@ export function placeBlock(gx, gz) {
   if (!island) return false;
   
   const blockList = getBlockAt(gx, gz);
+  if (blockList.length >= STACKABLE_HEIGHT) return false;
   
   // Find the highest existing block
   let highestY = 0;
   blockList.forEach(b => {
     highestY = Math.max(highestY, b.mesh.position.y + 0.3);
   });
-  
-  // Don't stack too high
-  if (highestY > STACKABLE_HEIGHT * 0.6) return false;
   
   // Create new block
   const newY = highestY + 0.3;
@@ -252,6 +251,7 @@ export function placeBlock(gx, gz) {
 export function removeBlock(gx, gz) {
   const blockList = getBlockAt(gx, gz);
   if (blockList.length === 0) return false;
+  if (blockList.length <= MIN_STACK_HEIGHT) return false;
   
   // Find highest block
   let highest = blockList[0];
@@ -283,15 +283,11 @@ export function removeBlock(gx, gz) {
 // Check if player can place a block at position
 export function canPlaceBlock(gx, gz) {
   const blockList = getBlockAt(gx, gz);
-  let highestY = 0;
-  blockList.forEach(b => {
-    highestY = Math.max(highestY, b.mesh.position.y + 0.3);
-  });
-  return highestY <= STACKABLE_HEIGHT * 0.6;
+  return blockList.length < STACKABLE_HEIGHT;
 }
 
 // Check if player can remove a block at position
 export function canRemoveBlock(gx, gz) {
   const blockList = getBlockAt(gx, gz);
-  return blockList.length > 0;
+  return blockList.length > MIN_STACK_HEIGHT;
 }
