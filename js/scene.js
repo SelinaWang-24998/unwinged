@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
-const GRID_SIZE = 20;
+const GRID_SIZE = 44;
 const TILE_SIZE = 1;
+const MAP_RADIUS = 20 * TILE_SIZE;
 
 let scene, camera, renderer;
 let gridGroup;
@@ -52,44 +53,64 @@ export function initScene(container) {
 }
 
 function createGrid() {
-  const mat = new THREE.MeshBasicMaterial({ color: gridBgColor, side: THREE.DoubleSide });
-  const geo = new THREE.PlaneGeometry(GRID_SIZE * TILE_SIZE, GRID_SIZE * TILE_SIZE);
+  const tex = createCircularGridTexture();
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+  const geo = new THREE.CircleGeometry(MAP_RADIUS, 96);
   const floor = new THREE.Mesh(geo, mat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, -0.05, 0);
   gridGroup.add(floor);
-
-  // Grid lines
-  const lineMat = new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: 0.3 });
-  const half = (GRID_SIZE / 2) * TILE_SIZE;
-  for (let i = 0; i <= GRID_SIZE; i++) {
-    const pos = -half + i * TILE_SIZE;
-    addLine(lineMat, [pos, 0, -half], [pos, 0, half]);
-    addLine(lineMat, [-half, 0, pos], [half, 0, pos]);
-  }
 }
 
-function addLine(mat, from, to) {
-  const points = [new THREE.Vector3(...from), new THREE.Vector3(...to)];
-  const geo = new THREE.BufferGeometry().setFromPoints(points);
-  gridGroup.add(new THREE.Line(geo, mat));
+function createCircularGridTexture() {
+  const size = 768;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = `#${gridBgColor.toString(16).padStart(6, '0')}`;
+  ctx.fillRect(0, 0, size, size);
+
+  const center = size / 2;
+  const radius = size * 0.48;
+  const step = size / GRID_SIZE;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(center, center, radius, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.strokeStyle = `rgba(68,136,204,0.28)`;
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= GRID_SIZE; i++) {
+    const p = i * step;
+    ctx.beginPath();
+    ctx.moveTo(p, 0);
+    ctx.lineTo(p, size);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, p);
+    ctx.lineTo(size, p);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function createSkyBackground() {
-  // Simple sky dome using a large hemisphere or just rely on scene background color
-  // Floating island silhouettes in the background
-  const bgMat = new THREE.MeshToonMaterial({ color: 0xc8d8e8 });
-  for (let i = 0; i < 5; i++) {
-    const x = (Math.random() - 0.5) * 30;
-    const y = 8 + Math.random() * 6;
-    const z = (Math.random() - 0.5) * 30;
-    const size = 0.6 + Math.random() * 1.5;
-    const geo = new THREE.BoxGeometry(size, size * 0.3, size);
-    const cloud = new THREE.Mesh(geo, bgMat);
-    cloud.position.set(x, y, z);
-    cloud.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
-    scene.add(cloud);
-  }
+  return;
 }
 
 function onResize() {
@@ -109,4 +130,5 @@ export function getRenderer() { return renderer; }
 export function getTileSize() { return TILE_SIZE; }
 export function getGridSize() { return GRID_SIZE; }
 export function getHalfGrid() { return (GRID_SIZE / 2) * TILE_SIZE; }
+export function getMapRadius() { return MAP_RADIUS; }
 export function render() { renderer.render(scene, camera); }
