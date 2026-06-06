@@ -93,16 +93,37 @@ body { overflow:hidden; background:#1a1a2e; font-family:'Segoe UI',sans-serif; t
   margin-bottom:32px; font-style:italic; letter-spacing:2px;
 }
 #start-hint { color:#666; font-size:12px; margin-top:16px; }
-#start-btn, #restart-btn {
+#start-btn, #restart-btn, #home-btn, #honor-btn, #honor-close {
   padding:14px 40px; font-size:18px; background:rgba(255,255,255,0.1);
   color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius:12px;
   cursor:pointer; letter-spacing:2px; transition:background 0.2s;
 }
-#start-btn:hover, #restart-btn:hover { background:rgba(255,255,255,0.2); }
+#start-btn:hover, #restart-btn:hover, #home-btn:hover, #honor-btn:hover, #honor-close:hover { background:rgba(255,255,255,0.2); }
 
 #end-screen h2 { color:#ffd700; font-size:28px; margin-bottom:12px; }
 #end-screen p { color:#c8c0b0; font-size:16px; margin-bottom:8px; }
-#end-journal-hint { font-size:13px !important; color:#888 !important; font-style:italic; }
+#end-score { text-align:center; }
+.end-stars { display:block; margin-top:10px; text-align:center; }
+.end-star { display:inline-block; color:#ffd700; font-size:26px; }
+.end-star.center { font-size:34px; }
+.end-star.empty { opacity:0.25; }
+#end-journal-hint { font-size:18px !important; color:#c8c0b0 !important; font-weight:700; text-align:center; }
+#end-honors { color:#ffd700; font-size:20px; font-weight:700; text-align:center; max-width:520px; line-height:1.4; }
+.end-honor { display:inline-block; margin:6px 8px 0; padding:6px 10px; border:1px solid rgba(255,215,0,0.35); border-radius:999px; background:rgba(255,215,0,0.08); }
+#end-actions { display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; justify-content:center; }
+#end-actions button { padding:12px 22px; font-size:14px; }
+
+#honor-panel {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(10,10,20,0.92); color:#e0d8c8; padding:24px 32px;
+  border-radius:16px; z-index:70; max-width:520px; width:92%;
+  border:1px solid rgba(255,255,255,0.15); backdrop-filter:blur(8px);
+}
+#honor-panel h3 { text-align:center; margin-bottom:16px; font-size:18px; }
+#honor-panel ul { list-style:none; max-height:52vh; overflow:auto; padding-right:6px; }
+#honor-panel li { padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.08); font-size:14px; }
+#honor-panel li.locked { color:#555; }
+#honor-close { display:block; margin:16px auto 0; padding:10px 24px; font-size:14px; }
 
 .hidden { display:none !important; }
 
