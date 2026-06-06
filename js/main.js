@@ -7,7 +7,7 @@ import { createPursuer, updatePursuer, resetPursuer } from './pursuer.js';
 import { createFragments, updateFragments, checkFragmentCollection, resetFragments, onFragmentCollected, getTotalFragments } from './fragments.js';
 import { initGyro, updateGyro } from './gyro.js';
 import { initJournal, triggerJournal, resetJournal } from './journal.js';
-import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver, refreshScoreDisplay } from './ui.js';
+import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver, refreshScoreDisplay, isPaused } from './ui.js';
 import { updateParticles, clearAllParticles, spawnCollectParticles, spawnSplashParticles, spawnDustParticles } from './particles.js';
 import { updateRipples } from './particles.js';
 import { playCollect, playSplash, playAlert, playVictory, playGameOver, initAudioOnInteraction } from './audio.js';
@@ -178,7 +178,7 @@ function startGameLoop() {
   function animate() {
     gameLoopId = requestAnimationFrame(animate);
 
-    if (!isGameRunning() || isGameOver()) {
+    if (!isGameRunning() || isGameOver() || isPaused()) {
       render();
       return;
     }

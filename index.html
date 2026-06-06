@@ -12,12 +12,14 @@
 <!-- HUD -->
 <div id="hud">
   <div id="hud-left">
-    <div id="score-display">碎片: <span id="score">0</span>/3</div>
-    <div id="lives-display">生命: <span id="lives">1</span></div>
+    <div id="journal-mini">日志<br><span id="journal-mini-lines"></span></div>
   </div>
   <div id="hud-right">
+    <div id="score-display">碎片: <span id="score">0</span>/3</div>
+    <div id="lives-display">生命: <span id="lives">1</span></div>
     <div id="timer-display">时间: <span id="timer">6:00</span></div>
     <div id="gyro-mode">模式: <span id="mode-label">地形</span></div>
+    <button id="pause-btn" type="button">暂停</button>
   </div>
 </div>
 
@@ -69,6 +71,14 @@
   <p id="end-score"></p>
   <p id="end-journal-hint"></p>
   <button id="restart-btn">再来一次</button>
+</div>
+
+<div id="pause-overlay" class="hidden">
+  <div id="pause-panel">
+    <div id="pause-title">已暂停</div>
+    <button id="resume-btn" type="button">继续</button>
+    <button id="pause-restart-btn" type="button">重新开始</button>
+  </div>
 </div>
 
 <!-- Mobile controls -->

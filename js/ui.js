@@ -37,6 +37,7 @@ export async function requestLandscape() {
 let timeRemaining = 360; // 6 minutes in seconds
 let gameRunning = false;
 let gameOver = false;
+let paused = false;
 let lives = 1;
 let score = 0;
 let onRestartCallback = null;
@@ -47,6 +48,7 @@ let firstMoveTriggered = false;
 let scoreEl, livesEl, timerEl, modeLabel, startScreen, endScreen;
 let endTitle, endScore, endJournalHint, restartBtn, startBtn;
 let countdownOverlay, countdownNumber;
+let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn;
 let isMobile = false;
 
 // 3-2-1 countdown before game starts
@@ -86,6 +88,10 @@ export function initUI() {
   startBtn = document.getElementById("start-btn");
   countdownOverlay = document.getElementById("countdown-overlay");
   countdownNumber = document.getElementById("countdown-number");
+  pauseBtn = document.getElementById("pause-btn");
+  pauseOverlay = document.getElementById("pause-overlay");
+  resumeBtn = document.getElementById("resume-btn");
+  pauseRestartBtn = document.getElementById("pause-restart-btn");
 
   // Detect mobile
   isMobile =
@@ -108,6 +114,18 @@ export function initUI() {
     if (onRestartCallback) onRestartCallback();
   });
 
+  pauseBtn?.addEventListener("click", () => {
+    if (!gameRunning || gameOver) return;
+    setPaused(!paused);
+  });
+  resumeBtn?.addEventListener("click", () => setPaused(false));
+  pauseRestartBtn?.addEventListener("click", () => {
+    setPaused(false);
+    if (onRestartCallback) onRestartCallback();
+    startScreen?.classList.add("hidden");
+    startCountdown();
+  });
+
   // Keyboard input
   document.addEventListener("keydown", (e) => {
     setKey(e.code, true);
@@ -115,6 +133,9 @@ export function initUI() {
     if (e.code === "KeyQ") {
       const mode = toggleGyroMode();
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
+    }
+    if (e.code === "Escape") {
+      if (gameRunning && !gameOver) setPaused(!paused);
     }
     if (e.code === "KeyE") {
       placeBlockAction();
@@ -256,7 +277,7 @@ function initOrientationGuards() {
 }
 
 export function updateUI(delta) {
-  if (!gameRunning || gameOver) return;
+  if (!gameRunning || gameOver || paused) return;
 
   timeRemaining -= delta;
   if (timeRemaining <= 0) {
@@ -306,6 +327,8 @@ export function updateUI(delta) {
 export function endGame(reason) {
   gameOver = true;
   gameRunning = false;
+  paused = false;
+  pauseOverlay?.classList.add("hidden");
   score = getTotalCollectedEver(); // 使用"曾收集到的最大数量"
   endScreen.classList.remove("hidden");
 
@@ -327,13 +350,14 @@ export function endGame(reason) {
 
   endTitle.innerHTML = `${line1}<br>${line2}`;
   endScore.textContent = `收集碎片: ${score}/${getTotalFragments()}`;
-  endJournalHint.textContent = "按 Tab 查看你发现的观察日志";
+  endJournalHint.textContent = "";
 }
 
 export function resetUI() {
   timeRemaining = 360;
   gameRunning = false;
   gameOver = false;
+  paused = false;
   lives = 1;
   score = 0;
   firstMoveTriggered = false;
@@ -344,6 +368,7 @@ export function resetUI() {
   endScreen.classList.add("hidden");
   startScreen.classList.remove("hidden");
   if (countdownOverlay) countdownOverlay.classList.add("hidden");
+  pauseOverlay?.classList.add("hidden");
 }
 
 export function getTimeRemaining() {
@@ -354,6 +379,17 @@ export function isGameRunning() {
 }
 export function isGameOver() {
   return gameOver;
+}
+export function isPaused() {
+  return paused;
+}
+
+export function setPaused(v) {
+  paused = !!v;
+  if (pauseOverlay) {
+    if (paused) pauseOverlay.classList.remove("hidden");
+    else pauseOverlay.classList.add("hidden");
+  }
 }
 export function onRestart(cb) {
   onRestartCallback = cb;
