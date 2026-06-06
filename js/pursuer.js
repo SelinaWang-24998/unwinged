@@ -17,7 +17,7 @@ const PATROL_POINT_RADIUS_MIN = 6;
 const PATROL_POINT_RADIUS_MAX = 16;
 const AUTO_STEP_UP = 0.7;
 const JUMP_STEP_UP = 1.3;
-const JUMP_FORCE = 2;
+const JUMP_FORCE = 3;
 const GRAVITY = 20;
 
 let pursuerMesh;

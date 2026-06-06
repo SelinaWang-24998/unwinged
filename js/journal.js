@@ -12,6 +12,7 @@ const journalEntries = [
 ];
 
 let journalPopupEl, journalTextEl, journalReviewEl, journalListEl;
+let journalMiniLinesEl;
 let popupTimeout = null;
 
 export function initJournal() {
@@ -19,7 +20,9 @@ export function initJournal() {
   journalTextEl = document.getElementById('journal-text');
   journalReviewEl = document.getElementById('journal-review');
   journalListEl = document.getElementById('journal-list');
+  journalMiniLinesEl = document.getElementById('journal-mini-lines');
   document.getElementById('journal-close').addEventListener('click', hideReview);
+  updateMiniList();
 }
 
 export function triggerJournal(id) {
@@ -44,6 +47,7 @@ export function triggerJournal(id) {
 
   // Update review list
   updateReviewList();
+  updateMiniList();
 }
 
 function updateReviewList() {
@@ -59,6 +63,13 @@ function updateReviewList() {
     }
     journalListEl.appendChild(li);
   });
+}
+
+function updateMiniList() {
+  if (!journalMiniLinesEl) return;
+  journalMiniLinesEl.textContent = journalEntries
+    .map((e) => (e.triggered ? e.text : '???'))
+    .join('\n');
 }
 
 export function showReview() {
@@ -79,6 +90,7 @@ export function resetJournal() {
   if (popupTimeout) clearTimeout(popupTimeout);
   journalPopupEl?.classList.add('hidden');
   journalReviewEl?.classList.add('hidden');
+  updateMiniList();
 }
 
 export function hasTriggered(id) {
