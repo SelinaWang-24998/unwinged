@@ -11,26 +11,49 @@ import { showReview, hideReview, isReviewVisible } from "./journal.js";
 import { playAlert, playVictory, playGameOver } from "./audio.js";
 
 // === Fullscreen + Landscape Lock ===
-// Call this on user gesture (button click). Returns a promise.
+// Multi-path approach: fullscreen first, then orientation lock.
+// CSS rotate-prompt acts as fallback enforcement when neither works.
 export async function requestLandscape() {
+  // Step 1: try fullscreen (precondition for orientation.lock on Chrome/Android)
+  let fsOk = false;
   try {
     const el = document.documentElement;
-    // Step 1: enter fullscreen (required for orientation lock on mobile)
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
       if (el.requestFullscreen) {
-        await el.requestFullscreen().catch(() => {});
+        await el.requestFullscreen();
+        fsOk = true;
       } else if (el.webkitRequestFullscreen) {
-        await el.webkitRequestFullscreen().catch(() => {});
+        await el.webkitRequestFullscreen();
+        fsOk = true;
       }
-    }
-    // Step 2: lock orientation to landscape
-    if (screen.orientation && screen.orientation.lock) {
-      await screen.orientation.lock('landscape-primary').catch(() => {
-        return screen.orientation.lock('landscape').catch(() => {});
-      });
+    } else {
+      fsOk = true; // already fullscreen
     }
   } catch (e) {
-    // Not supported or denied — CSS rotate prompt will show as fallback
+    // iOS Safari, older browsers — no Fullscreen API
+  }
+
+  // Step 2: try orientation lock (modern API)
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      // Try all landscape variants in order
+      await screen.orientation.lock('landscape-primary')
+        .catch(() => screen.orientation.lock('landscape'))
+        .catch(() => screen.orientation.lock('landscape-secondary'))
+        .catch(() => {});
+    }
+  } catch (e) {
+    // Not supported
+  }
+
+  // Step 3: legacy lockOrientation (very old Android browsers)
+  try {
+    if (screen.lockOrientation) {
+      screen.lockOrientation('landscape-primary');
+      // Fallback: screen.lockOrientation('landscape');
+    }
+  } catch (e) {
+    // N/A
   }
 }
 
@@ -210,43 +233,75 @@ function setupMobileButtons() {
     ?.addEventListener("pointerdown", grabBlock);
 }
 
-// === Fullscreen / Orientation Lock Guards ===
+// === Orientation Lock Guards ===
+// Primary enforcement: CSS rotate-prompt overlay blocks game when portrait.
+// JS orientation.lock() is best-effort (needs fullscreen, which doesn't work on iOS).
 function initOrientationGuards() {
-  const promptEl = document.getElementById("fullscreen-prompt");
-  const btn = document.getElementById("fullscreen-prompt-btn");
+  const rotatePrompt = document.getElementById("rotate-prompt");
+  const fullscreenPrompt = document.getElementById("fullscreen-prompt");
 
-  function showPrompt() {
-    if (promptEl) promptEl.classList.remove("hidden");
+  function showRotate() {
+    if (rotatePrompt) rotatePrompt.style.display = "flex";
   }
-  function hidePrompt() {
-    if (promptEl) promptEl.classList.add("hidden");
+  function hideRotate() {
+    if (rotatePrompt) rotatePrompt.style.display = "none";
+  }
+  function showFsPrompt() {
+    if (fullscreenPrompt) fullscreenPrompt.classList.remove("hidden");
+  }
+  function hideFsPrompt() {
+    if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
   }
 
-  if (btn) {
-    btn.addEventListener("click", async () => {
-      hidePrompt();
-      await requestLandscape();
-    });
+  // Core handler: check orientation and enforce
+  function handleOrientationChange() {
+    setTimeout(() => {
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const isPortrait = W < H;
+      const isMobile = W < 768 || H < 768;
+
+      if (isPortrait && isMobile) {
+        showRotate();
+        // Best-effort: try to re-lock (works if still in fullscreen)
+        requestLandscape();
+      } else {
+        hideRotate();
+      }
+    }, 150);
   }
 
-  // If user exits fullscreen, show prompt
+  // Fullscreen exit → show fullscreen-prompt
   document.addEventListener("fullscreenchange", () => {
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-      showPrompt();
+      showFsPrompt();
     } else {
-      hidePrompt();
+      hideFsPrompt();
     }
   });
 
-  // If orientation flips to portrait while in-game, try to re-lock
-  window.addEventListener("orientationchange", () => {
-    setTimeout(() => {
-      const isPortrait = window.innerWidth < window.innerHeight;
-      if (isPortrait && (document.fullscreenElement || document.webkitFullscreenElement)) {
-        requestLandscape().catch(() => showPrompt());
-      }
-    }, 300);
-  });
+  // Fullscreen prompt button → retry
+  const fsBtn = document.getElementById("fullscreen-prompt-btn");
+  if (fsBtn) {
+    fsBtn.addEventListener("click", async () => {
+      hideFsPrompt();
+      await requestLandscape();
+      handleOrientationChange();
+    });
+  }
+
+  // === Multi-layer orientation detection ===
+  // Layer 1: screen.orientation.change (fastest, modern)
+  if (screen.orientation) {
+    screen.orientation.addEventListener("change", handleOrientationChange);
+  }
+  // Layer 2: window.orientationchange (legacy, widely supported)
+  window.addEventListener("orientationchange", handleOrientationChange);
+  // Layer 3: window.resize (final fallback)
+  window.addEventListener("resize", handleOrientationChange);
+
+  // Initial check
+  handleOrientationChange();
 }
 
 export function updateUI(delta) {

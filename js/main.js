@@ -351,18 +351,5 @@ onRestart(() => {
   startBgLoop();
 });
 
-// === Orientation Lock ===
-// screen.orientation.lock() requires fullscreen — full logic in ui.js (start button click)
-// Fallback: show rotate prompt on portrait mobile
-function updateRotatePrompt() {
-  const prompt = document.getElementById('rotate-prompt');
-  if (!prompt) return;
-  const isPortrait = window.innerWidth < window.innerHeight;
-  const isMobile = window.innerWidth < 768;
-  prompt.style.display = (isPortrait && isMobile) ? 'flex' : 'none';
-}
-window.addEventListener('orientationchange', () => {
-  setTimeout(updateRotatePrompt, 100);
-});
-window.addEventListener('resize', updateRotatePrompt);
-updateRotatePrompt();
+// === Orientation enforcement is handled by initOrientationGuards() in ui.js ===
+// CSS rotate-prompt is the primary lock; JS orientation.lock() is best-effort.
