@@ -304,7 +304,6 @@ onStart(async () => {
     console.log('[DEBUG] Player created, creating pursuer...');
     createPursuer();
     console.log('[DEBUG] Pursuer created, initializing gyro...');
-    //initGyro();
     try {
       await initGyro();
     } catch (e) {

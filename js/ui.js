@@ -4,7 +4,7 @@ import {
   getTotalFragments,
 } from "./fragments.js";
 import { wasPlayerCaught, isChasing } from "./pursuer.js";
-import { toggleGyroMode, getGyroMode } from "./gyro.js";
+import { toggleGyroMode, getGyroMode, pcGyroPulse, requestGyroPermission } from "./gyro.js";
 import { setKey, setJoystick, triggerJump, placeBlockAction, grabBlockAction, getPlayerPosition } from "./player.js";
 import { triggerJournal } from "./journal.js";
 import { showReview, hideReview, isReviewVisible } from "./journal.js";
@@ -261,6 +261,8 @@ export function initUI() {
   startBtn.addEventListener("click", async () => {
     startScreen.classList.add("hidden");
     await requestLandscape();
+    // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
+    requestGyroPermission(); // 不 await，避免阻塞倒计时
     startCountdown();
   });
 
@@ -295,8 +297,6 @@ export function initUI() {
 
   // Keyboard input
   document.addEventListener("keydown", (e) => {
-    setKey(e.code, true);
-
     if (e.code === "KeyQ") {
       const mode = toggleGyroMode();
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
@@ -317,9 +317,8 @@ export function initUI() {
     }
     if (e.code === "Space") e.preventDefault();
 
-    // PC gyro: Alt+Arrow to simulate gyro tilt (mode B: terrain/wave)
-    if (e.altKey) {
-      e.preventDefault();
+    // PC gyro: Ctrl+Arrow to simulate gyro tilt
+    if (e.ctrlKey) {
       const dirMap = {
         ArrowUp: { x: 0, z: 1 },
         ArrowDown: { x: 0, z: -1 },
@@ -327,9 +326,13 @@ export function initUI() {
         ArrowRight: { x: 1, z: 0 },
       };
       if (dirMap[e.code]) {
-        import("./gyro.js").then((m) => m.pcGyroPulse(dirMap[e.code]));
+        e.preventDefault();
+        pcGyroPulse(dirMap[e.code]);
+        return;
       }
     }
+
+    setKey(e.code, true);
   });
 
   document.addEventListener("keyup", (e) => {

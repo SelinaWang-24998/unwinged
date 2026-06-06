@@ -114,6 +114,19 @@
   }
 }
 </script>
+<!-- Gyro Debug Panel -->
+<div id="gyro-debug" style="position:fixed;top:10px;left:10px;z-index:200;background:rgba(0,0,0,0.82);color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:6px;line-height:1.6;max-width:220px;pointer-events:none;">
+  <div>gyro-debug</div>
+  <div>perm: <span id="db-perm">-</span></div>
+  <div>events: <span id="db-evt">0</span></div>
+  <div>beta: <span id="db-beta">-</span></div>
+  <div>gamma: <span id="db-gamma">-</span></div>
+  <div>alpha: <span id="db-alpha">-</span></div>
+  <div>maxTilt: <span id="db-tilt">0</span></div>
+  <div>mode: <span id="db-mode">terrain</span></div>
+  <div>cooldown: <span id="db-cd">0</span></div>
+</div>
+
 <script type="module" src="js/main.js"></script>
 </body>
 </html>
