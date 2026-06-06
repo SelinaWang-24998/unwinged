@@ -169,7 +169,7 @@ function setupJoystick() {
     const tx = Math.cos(angle) * dist;
     const ty = Math.sin(angle) * dist;
     thumb.style.transform = `translate(${tx}px, ${ty}px)`;
-    setJoystick(tx / maxDist, ty / maxDist);
+    setJoystick(tx / maxDist, -ty / maxDist);
   };
 
   const handleEnd = () => {
