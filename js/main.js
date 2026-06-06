@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { initScene, render, getScene, getCamera, getRenderer } from './scene.js';
+import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer } from './scene.js';
 import { createIsland } from './island.js';
 import { createOcean, updateOcean } from './ocean.js';
 import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
@@ -83,7 +83,7 @@ function attachCameraControls() {
   };
 }
 
-// Clean up old scene objects AND old canvas
+// Clean up old scene objects (DO NOT remove canvas — we reuse the renderer)
 function cleanupScene() {
   const scene = getScene();
   ['player', 'pursuer', 'island', 'foliage', 'fragments', 'ripples', 'shallowWater'].forEach(name => {
@@ -92,10 +92,6 @@ function cleanupScene() {
   });
   const ocean = scene.getObjectByName('ocean');
   if (ocean) scene.remove(ocean);
-
-  // Remove old canvas to avoid duplicates
-  const oldCanvas = document.querySelector('#game-container canvas');
-  if (oldCanvas) oldCanvas.remove();
 }
 
 // Build a fresh game world
@@ -152,6 +148,58 @@ function startBgLoop() {
   bgAnimate();
 }
 
+// === Mobile Error Overlay ===
+// Shows JS errors directly on screen so mobile users can see what went wrong
+function initErrorOverlay() {
+  const el = document.createElement('div');
+  el.id = 'error-overlay';
+  el.style.cssText = [
+    'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999',
+    'background:rgba(180,10,10,0.92);color:#fff;display:none',
+    'flex-direction:column;align-items:flex-start;justify-content:flex-start',
+    'padding:24px 20px;font-family:monospace;font-size:13px;line-height:1.7',
+    'white-space:pre-wrap;word-break:break-all;overflow-y:auto;overflow-x:hidden',
+    'text-align:left;box-sizing:border-box',
+  ].join(';');
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:18px;font-weight:700;margin-bottom:16px;color:#ff6666';
+  title.textContent = '⚠ JS Error Detected';
+  el.appendChild(title);
+  const body = document.createElement('div');
+  body.id = 'error-overlay-body';
+  body.style.cssText = 'flex:1;width:100%';
+  el.appendChild(body);
+  const dismiss = document.createElement('div');
+  dismiss.style.cssText = 'margin-top:16px;font-size:12px;color:#ffaaaa;width:100%;text-align:center';
+  dismiss.textContent = '(tap to dismiss)';
+  el.appendChild(dismiss);
+  el.addEventListener('click', () => { el.style.display = 'none'; });
+  document.body.appendChild(el);
+  return el;
+}
+
+const errorOverlay = initErrorOverlay();
+
+function showErrorOverlay(msg) {
+  if (!errorOverlay) return;
+  errorOverlay.style.display = 'flex';
+  const body = document.getElementById('error-overlay-body');
+  if (body) body.textContent = msg;
+  // Also log so desktop debug is possible
+  console.error('[ErrorOverlay]', msg);
+}
+
+// Catch uncaught errors
+window.addEventListener('error', function(e) {
+  const detail = e.error ? (e.error.stack || e.error.message) : e.message;
+  showErrorOverlay(`${e.message}\n\nat ${e.filename}:${e.lineno}:${e.colno}\n\n${detail || ''}`);
+});
+
+// Catch unhandled promise rejections
+window.addEventListener('unhandledrejection', function(e) {
+  showErrorOverlay('Unhandled Promise Rejection:\n\n' + (e.reason?.stack || e.reason?.message || String(e.reason)));
+});
+
 // === Bootstrap ===
 const container = document.getElementById('game-container');
 initScene(container);
@@ -165,12 +213,11 @@ buildWorld();
 startBgLoop();
 
 // Start handler
-onStart(() => {
+onStart(async () => {
   try {
     console.log('[DEBUG] Game starting...');
     cleanupScene();
-    initScene(container);
-    attachCameraControls();
+    resetSceneForGame();   // Reuse existing renderer — no WebGL context recreation
     clock = new THREE.Clock();
     buildWorld();
     console.log('[DEBUG] World built, creating player...');
@@ -179,7 +226,12 @@ onStart(() => {
     console.log('[DEBUG] Player created, creating pursuer...');
     createPursuer();
     console.log('[DEBUG] Pursuer created, initializing gyro...');
-    initGyro();
+    //initGyro();
+    try {
+      await initGyro();
+    } catch (e) {
+      console.warn('陀螺仪不可用，继续游戏', e);
+    }
     initJournal();
     console.log('[DEBUG] Game start complete, entering game loop');
 
@@ -201,15 +253,15 @@ onStart(() => {
     startGameLoop();
   } catch (err) {
     console.error('[DEBUG] Game start failed:', err);
+    showErrorOverlay('[Game Start] ' + (err.stack || err.message));
   }
 });
 
 // Restart handler
 onRestart(() => {
   cleanupScene();
+  resetSceneForGame();   // Reuse existing renderer
   clearAllParticles();
-  initScene(container);
-  attachCameraControls();
   clock = new THREE.Clock();
   resetPlayer();
   resetPursuer();
@@ -220,3 +272,19 @@ onRestart(() => {
   buildWorld();
   startBgLoop();
 });
+
+// === Orientation Lock ===
+// screen.orientation.lock() requires fullscreen — full logic in ui.js (start button click)
+// Fallback: show rotate prompt on portrait mobile
+function updateRotatePrompt() {
+  const prompt = document.getElementById('rotate-prompt');
+  if (!prompt) return;
+  const isPortrait = window.innerWidth < window.innerHeight;
+  const isMobile = window.innerWidth < 768;
+  prompt.style.display = (isPortrait && isMobile) ? 'flex' : 'none';
+}
+window.addEventListener('orientationchange', () => {
+  setTimeout(updateRotatePrompt, 100);
+});
+window.addEventListener('resize', updateRotatePrompt);
+updateRotatePrompt();

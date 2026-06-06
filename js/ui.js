@@ -10,6 +10,30 @@ import { triggerJournal } from "./journal.js";
 import { showReview, hideReview, isReviewVisible } from "./journal.js";
 import { playAlert, playVictory, playGameOver } from "./audio.js";
 
+// === Fullscreen + Landscape Lock ===
+// Call this on user gesture (button click). Returns a promise.
+export async function requestLandscape() {
+  try {
+    const el = document.documentElement;
+    // Step 1: enter fullscreen (required for orientation lock on mobile)
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (el.requestFullscreen) {
+        await el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        await el.webkitRequestFullscreen().catch(() => {});
+      }
+    }
+    // Step 2: lock orientation to landscape
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock('landscape-primary').catch(() => {
+        return screen.orientation.lock('landscape').catch(() => {});
+      });
+    }
+  } catch (e) {
+    // Not supported or denied — CSS rotate prompt will show as fallback
+  }
+}
+
 let timeRemaining = 360; // 6 minutes in seconds
 let gameRunning = false;
 let gameOver = false;
@@ -71,9 +95,10 @@ export function initUI() {
     document.getElementById("mobile-controls")?.classList.remove("hidden");
   }
 
-  // Start button — show countdown first
-  startBtn.addEventListener("click", () => {
+  // Start button — enter fullscreen + landscape, then countdown
+  startBtn.addEventListener("click", async () => {
     startScreen.classList.add("hidden");
+    await requestLandscape();
     startCountdown();
   });
 
@@ -123,6 +148,7 @@ export function initUI() {
   // Mobile joystick
   if (isMobile) setupJoystick();
   setupMobileButtons();
+  initOrientationGuards();
 }
 
 function setupJoystick() {
@@ -182,6 +208,45 @@ function setupMobileButtons() {
   document
     .getElementById("btn-grab")
     ?.addEventListener("pointerdown", grabBlock);
+}
+
+// === Fullscreen / Orientation Lock Guards ===
+function initOrientationGuards() {
+  const promptEl = document.getElementById("fullscreen-prompt");
+  const btn = document.getElementById("fullscreen-prompt-btn");
+
+  function showPrompt() {
+    if (promptEl) promptEl.classList.remove("hidden");
+  }
+  function hidePrompt() {
+    if (promptEl) promptEl.classList.add("hidden");
+  }
+
+  if (btn) {
+    btn.addEventListener("click", async () => {
+      hidePrompt();
+      await requestLandscape();
+    });
+  }
+
+  // If user exits fullscreen, show prompt
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      showPrompt();
+    } else {
+      hidePrompt();
+    }
+  });
+
+  // If orientation flips to portrait while in-game, try to re-lock
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => {
+      const isPortrait = window.innerWidth < window.innerHeight;
+      if (isPortrait && (document.fullscreenElement || document.webkitFullscreenElement)) {
+        requestLandscape().catch(() => showPrompt());
+      }
+    }, 300);
+  });
 }
 
 export function updateUI(delta) {

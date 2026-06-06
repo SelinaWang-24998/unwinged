@@ -33,6 +33,24 @@
   <button id="journal-close">关闭 [Tab]</button>
 </div>
 
+<!-- Rotate prompt (portrait → landscape) -->
+<div id="rotate-prompt">
+  <svg width="80" height="80" viewBox="0 0 80 80">
+    <rect x="20" y="15" width="40" height="50" rx="6" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
+    <line x1="25" y1="22" x2="40" y2="22" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+    <circle cx="40" cy="38" r="6" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
+    <polyline points="18,50 10,58 2,50" fill="none" stroke="rgba(255,215,0,0.8)" stroke-width="3" stroke-linecap="round"/>
+    <polyline points="18,50 10,58" fill="none" stroke="rgba(255,215,0,0.8)" stroke-width="3" stroke-linecap="round"/>
+  </svg>
+  <p>请旋转设备<br><span>横屏体验更佳</span></p>
+</div>
+
+<!-- Fullscreen prompt (shown when user exits fullscreen) -->
+<div id="fullscreen-prompt" class="hidden">
+  <p>请重新进入全屏</p>
+  <button id="fullscreen-prompt-btn">进入全屏</button>
+</div>
+
 <!-- Countdown overlay -->
 <div id="countdown-overlay" class="hidden">
   <span id="countdown-number">3</span>

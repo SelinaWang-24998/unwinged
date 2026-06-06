@@ -1,16 +1,16 @@
 // Gyroscope system - dual mode
-import { gyroControlPursuer } from './pursuer.js';
-import { deformTerrain } from './terrain.js';
-import { createWave } from './ocean.js';
-import { isLand, getTerrainHeight } from './island.js';
-import { getPlayerGridPos } from './player.js';
-import { getTileSize } from './scene.js';
-import { triggerJournal, hasTriggered } from './journal.js';
-import { playTerrainDeform, playWave } from './audio.js';
+import { gyroControlPursuer } from "./pursuer.js";
+import { deformTerrain } from "./terrain.js";
+import { createWave } from "./ocean.js";
+import { isLand, getTerrainHeight } from "./island.js";
+import { getPlayerGridPos } from "./player.js";
+import { getTileSize } from "./scene.js";
+import { triggerJournal, hasTriggered } from "./journal.js";
+import { playTerrainDeform, playWave } from "./audio.js";
 
 const TILE = getTileSize();
 
-let mode = 'terrain'; // 'pursuer' | 'terrain'
+let mode = "terrain"; // 'pursuer' | 'terrain'
 let lastTilt = { beta: 0, gamma: 0 };
 let tiltTimer = 0;
 const TILT_THRESHOLD = 20; // degrees
@@ -22,17 +22,31 @@ let pulseCooldown = 0;
 let pcSimActive = false;
 let pcSimMode = null;
 
-export function initGyro() {
-  if (window.DeviceOrientationEvent) {
-    window.addEventListener('deviceorientation', handleOrientation);
-  }
-  // Request permission for iOS
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    document.addEventListener('click', async function requestOnce() {
-      try {
-        await DeviceOrientationEvent.requestPermission();
-      } catch (e) { /* denied */ }
-    }, { once: true });
+export async function initGyro() {
+  try {
+    const DevOrient = window.DeviceOrientationEvent;
+
+    if (!DevOrient) {
+      console.warn("[Gyro] 当前环境不支持 DeviceOrientationEvent");
+      return false;
+    }
+
+    if (typeof DevOrient.requestPermission === "function") {
+      const permission = await DevOrient.requestPermission();
+
+      if (permission !== "granted") {
+        console.warn("[Gyro] 用户未授权陀螺仪");
+        return false;
+      }
+    }
+
+    window.addEventListener("deviceorientation", handleOrientation, true);
+    console.log("[Gyro] 陀螺仪监听已启动");
+
+    return true;
+  } catch (e) {
+    console.warn("[Gyro] 初始化失败，降级为普通控制", e);
+    return false;
   }
 }
 
@@ -53,11 +67,11 @@ export function updateGyro(delta) {
   const maxTilt = Math.max(absGamma, absBeta);
   const intensity = Math.min(1, maxTilt / 60); // 0-1 based on tilt
 
-  if (mode === 'pursuer') {
+  if (mode === "pursuer") {
     // Mode A: Tilt moves pursuer
     if (maxTilt > TILT_THRESHOLD && pulseCooldown <= 0) {
-      if (!hasTriggered('gyro_pursuer')) {
-        triggerJournal('gyro_pursuer');
+      if (!hasTriggered("gyro_pursuer")) {
+        triggerJournal("gyro_pursuer");
       }
       const dirX = (lastTilt.gamma || 0) / 90; // -1 to 1
       const dirZ = (lastTilt.beta - 45 || 0) / 45; // -1 to 1 (beta 0=flat, 90=vertical)
@@ -70,8 +84,8 @@ export function updateGyro(delta) {
       const pos = getPlayerGridPos();
       if (isLand(pos.x, pos.z)) {
         // On land: modify terrain Z-axis
-        if (!hasTriggered('gyro_terrain')) {
-          triggerJournal('gyro_terrain');
+        if (!hasTriggered("gyro_terrain")) {
+          triggerJournal("gyro_terrain");
         }
         const dir = lastTilt.gamma > 0 ? 1 : -1;
         if (tiltTimer <= 0) {
@@ -81,8 +95,8 @@ export function updateGyro(delta) {
         }
       } else {
         // On sea: create waves
-        if (!hasTriggered('gyro_wave')) {
-          triggerJournal('gyro_wave');
+        if (!hasTriggered("gyro_wave")) {
+          triggerJournal("gyro_wave");
           playWave();
         }
         const dirX = (lastTilt.gamma || 0) / 90;
@@ -96,7 +110,7 @@ export function updateGyro(delta) {
 // PC keyboard simulation
 export function pcGyroPulse(direction) {
   const intensity = 0.7;
-  if (mode === 'pursuer') {
+  if (mode === "pursuer") {
     gyroControlPursuer(direction.x || 0, direction.z || 0, intensity);
   } else {
     createWave(direction, intensity);
@@ -104,11 +118,13 @@ export function pcGyroPulse(direction) {
 }
 
 export function toggleGyroMode() {
-  mode = mode === 'pursuer' ? 'terrain' : 'pursuer';
+  mode = mode === "pursuer" ? "terrain" : "pursuer";
   return mode;
 }
 
-export function getGyroMode() { return mode; }
+export function getGyroMode() {
+  return mode;
+}
 
 // PC simulation via keyboard
 export function setPCSim(active, simMode) {

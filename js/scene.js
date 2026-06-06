@@ -10,6 +10,15 @@ const gridColor = 0x4488cc;
 const gridBgColor = 0x1a3060;
 
 export function initScene(container) {
+  // Dispose old renderer to free WebGL context (critical on mobile)
+  if (renderer) {
+    renderer.dispose();
+    try { renderer.forceContextLoss(); } catch (e) {}
+    if (renderer.domElement && renderer.domElement.parentNode) {
+      renderer.domElement.parentNode.removeChild(renderer.domElement);
+    }
+  }
+
   // Scene
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
@@ -49,7 +58,7 @@ export function initScene(container) {
   createSkyBackground();
 
   window.addEventListener('resize', onResize);
-  return { scene, camera, renderer };
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
 }
 
 function createGrid() {
@@ -122,6 +131,41 @@ function onResize() {
   camera.bottom = -size;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+}
+
+// 重置场景内容但不销毁 renderer/scene/camera
+// 避免手机端 WebGL 上下文释放/重建失败导致 3D 消失
+export function resetSceneForGame() {
+  // Remove all children except lights and grid
+  const keep = new Set();
+  scene.children.forEach(child => {
+    if (child.isLight || child === gridGroup) keep.add(child);
+  });
+  const toRemove = [];
+  scene.children.forEach(child => {
+    if (!keep.has(child)) toRemove.push(child);
+  });
+  toRemove.forEach(child => scene.remove(child));
+
+  // Reset scene background & fog (may have been altered)
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.Fog(0x87CEEB, 25, 50);
+
+  // Reset camera
+  const aspect = window.innerWidth / window.innerHeight;
+  const size = 12;
+  camera.left = -size * aspect;
+  camera.right = size * aspect;
+  camera.top = size;
+  camera.bottom = -size;
+  camera.updateProjectionMatrix();
+  camera.position.set(16, 14, 16);
+  camera.lookAt(0, 0, 0);
+
+  // Ensure renderer size matches current viewport (critical for mobile)
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 }
 
 export function getScene() { return scene; }
@@ -132,3 +176,4 @@ export function getGridSize() { return GRID_SIZE; }
 export function getHalfGrid() { return (GRID_SIZE / 2) * TILE_SIZE; }
 export function getMapRadius() { return MAP_RADIUS; }
 export function render() { renderer.render(scene, camera); }
+export { onResize };
