@@ -1,11 +1,15 @@
 import * as THREE from 'three';
-import { getScene, getGridSize, getTileSize } from './scene.js';
+import { getScene, getGridSize, getTileSize, getMapRadius } from './scene.js';
 import { isLand } from './island.js';
 
 let waterMesh;
 let waveOffset = 0;
 const GRID = getGridSize();
 const TILE = getTileSize();
+const MAP_RADIUS = getMapRadius();
+const LAND_RADIUS = 14;
+const SHALLOW_INNER = LAND_RADIUS;
+const SHALLOW_OUTER = 17;
 
 // Wave force state — continuous sinusoidal push
 let waveForceDir = new THREE.Vector3(1, 0, 0.5).normalize(); // wave propagation direction
@@ -18,9 +22,9 @@ export function createOcean() {
   const half = (GRID / 2) * TILE;
 
   // Shallow water ring (radius ~8 from center)
-  const shallowGeo = new THREE.RingGeometry(0.5, 8 * TILE, 64);
+  const shallowGeo = new THREE.RingGeometry(SHALLOW_INNER * TILE, SHALLOW_OUTER * TILE, 128);
   const shallowMat = new THREE.MeshPhongMaterial({
-    color: 0x3388cc,
+    color: 0x1a3d6e,
     transparent: true,
     opacity: 0.45,
     specular: 0x88bbff,
@@ -36,7 +40,7 @@ export function createOcean() {
   // Full water plane (deep color base)
   const geo = new THREE.PlaneGeometry(GRID * TILE, GRID * TILE, GRID * 2, GRID * 2);
   const mat = new THREE.MeshPhongMaterial({
-    color: 0x1a3d6e,
+    color: 0x3388cc,
     transparent: true,
     opacity: 0.65,
     specular: 0x4477aa,
@@ -120,18 +124,19 @@ export function isInShallowWater(gx, gz, isLandFn) {
   if (Math.abs(gx) > half || Math.abs(gz) > half) return false;
   // Not on land
   if (isLandFn && isLandFn(gx, gz)) return false;
-  // Within 8 tiles of center = shallow water
   const dist = Math.sqrt(gx * gx + gz * gz);
-  return dist < 8;
+  if (dist >= MAP_RADIUS) return false;
+  return dist >= SHALLOW_INNER && dist < SHALLOW_OUTER;
 }
 
-// Deep water: beyond 8 tiles from center and not on land
+// Deep water: beyond shallow ring OR beyond map radius
 export function isInDeepWater(gx, gz) {
   const half = (GRID / 2);
   if (Math.abs(gx) > half || Math.abs(gz) > half) return true;
   if (isLand(gx, gz)) return false;
   const dist = Math.sqrt(gx * gx + gz * gz);
-  return dist >= 8;
+  if (dist >= MAP_RADIUS) return true;
+  return dist >= SHALLOW_OUTER;
 }
 
 // Get wave force at a world position (returns THREE.Vector3)

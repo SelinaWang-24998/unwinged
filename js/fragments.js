@@ -1,26 +1,69 @@
 import * as THREE from 'three';
-import { getScene, getTileSize } from './scene.js';
+import { getScene, getTileSize, getMapRadius } from './scene.js';
 import { getPlayerPosition } from './player.js';
+import { isLand, getTerrainHeight } from './island.js';
+import { isInShallowWater } from './ocean.js';
 
 const TILE = getTileSize();
-
-// 3 fragments: [worldX, worldY, worldZ]
-const FRAGMENT_POSITIONS = [
-  { pos: new THREE.Vector3(-3 * TILE, 2.2, -3 * TILE), collected: false, id: 0 }, // Island highland
-  { pos: new THREE.Vector3(5 * TILE, 0.4, 3 * TILE), collected: false, id: 1 },   // Shallow water
-  { pos: new THREE.Vector3(3 * TILE, 3.8, 1 * TILE), collected: false, id: 2 },   // High platform - needs stacking
-];
+const MAP_RADIUS = getMapRadius();
+const FRAGMENT_COUNT = 3;
+const LAND_RADIUS = 14;
 
 let fragmentMeshes = [];
 let collectedCount = 0;
 let onCollectCallback = null;
+let fragments = [];
+
+function pickGridPoint(predicate) {
+  const max = Math.floor(MAP_RADIUS / TILE);
+  for (let i = 0; i < 800; i++) {
+    const gx = Math.round((Math.random() * 2 - 1) * max);
+    const gz = Math.round((Math.random() * 2 - 1) * max);
+    const dist = Math.sqrt(gx * gx + gz * gz);
+    if (dist >= max) continue;
+    const p = { x: gx, z: gz };
+    if (predicate(p)) return p;
+  }
+  return { x: 0, z: 0 };
+}
+
+function createFragmentData() {
+  const landPick = pickGridPoint((p) => {
+    if (!isLand(p.x, p.z)) return false;
+    const dist = Math.sqrt(p.x * p.x + p.z * p.z);
+    if (dist > LAND_RADIUS - 2) return false;
+    return getTerrainHeight(p.x, p.z) >= 0.9;
+  });
+
+  const shallowPick = pickGridPoint((p) => {
+    if (isLand(p.x, p.z)) return false;
+    return isInShallowWater(p.x, p.z, isLand);
+  });
+
+  const buildPick = pickGridPoint((p) => {
+    if (!isLand(p.x, p.z)) return false;
+    const dist = Math.sqrt(p.x * p.x + p.z * p.z);
+    if (dist > LAND_RADIUS - 2) return false;
+    return getTerrainHeight(p.x, p.z) <= 0.9;
+  });
+
+  return [
+    { id: 0, basePos: new THREE.Vector3(landPick.x * TILE, getTerrainHeight(landPick.x, landPick.z) + 1.0, landPick.z * TILE), collected: false },
+    { id: 1, basePos: new THREE.Vector3(shallowPick.x * TILE, -0.05, shallowPick.z * TILE), collected: false },
+    { id: 2, basePos: new THREE.Vector3(buildPick.x * TILE, getTerrainHeight(buildPick.x, buildPick.z) + 2.2, buildPick.z * TILE), collected: false },
+  ];
+}
 
 export function createFragments() {
   const scene = getScene();
   const group = new THREE.Group();
   group.name = 'fragments';
 
-  FRAGMENT_POSITIONS.forEach(f => {
+  fragmentMeshes = [];
+  collectedCount = 0;
+  fragments = createFragmentData();
+
+  fragments.forEach(f => {
     const geo = new THREE.OctahedronGeometry(0.25, 0);
     const mat = new THREE.MeshPhongMaterial({
       color: 0xffdd44,
@@ -30,11 +73,10 @@ export function createFragments() {
       shininess: 80,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(f.pos);
-    mesh.userData = { fragmentId: f.id };
+    mesh.position.copy(f.basePos);
+    mesh.userData = { fragmentId: f.id, baseY: mesh.position.y };
     mesh.name = `fragment-${f.id}`;
 
-    // Glow ring
     const ringGeo = new THREE.TorusGeometry(0.35, 0.04, 8, 16);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.5 });
     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -54,10 +96,10 @@ export function updateFragments(delta) {
   const time = performance.now() * 0.001;
   fragmentMeshes.forEach(m => {
     if (!m.visible) return;
-    // Bob up and down
-    const fData = FRAGMENT_POSITIONS.find(f => f.id === m.userData.fragmentId);
+    const fData = fragments.find(f => f.id === m.userData.fragmentId);
     if (fData && !fData.collected) {
-      m.position.y = fData.pos.y + Math.sin(time * 2 + fData.id) * 0.2;
+      const baseY = m.userData.baseY ?? m.position.y;
+      m.position.y = baseY + Math.sin(time * 2 + fData.id) * 0.2;
       m.rotation.y += delta * 1.5;
       // Glow ring animation
       const ring = m.getObjectByName('glow');
@@ -71,14 +113,15 @@ export function updateFragments(delta) {
 
 export function checkFragmentCollection() {
   const playerPos = getPlayerPosition();
-  for (const f of FRAGMENT_POSITIONS) {
+  for (const f of fragments) {
     if (f.collected) continue;
-    const dist = playerPos.distanceTo(f.pos);
+    const mesh = fragmentMeshes.find(m => m.userData.fragmentId === f.id);
+    if (!mesh || !mesh.visible) continue;
+    const dist = playerPos.distanceTo(mesh.position);
     if (dist < 1.0) {
       f.collected = true;
       collectedCount++;
       // Hide mesh
-      const mesh = fragmentMeshes.find(m => m.userData.fragmentId === f.id);
       if (mesh) mesh.visible = false;
       if (onCollectCallback) onCollectCallback(f.id, collectedCount);
       return f.id;
@@ -89,8 +132,8 @@ export function checkFragmentCollection() {
 
 export function onFragmentCollected(cb) { onCollectCallback = cb; }
 export function getCollectedCount() { return collectedCount; }
-export function getTotalFragments() { return FRAGMENT_POSITIONS.length; }
-export function getAllCollected() { return collectedCount >= FRAGMENT_POSITIONS.length; }
+export function getTotalFragments() { return FRAGMENT_COUNT; }
+export function getAllCollected() { return collectedCount >= FRAGMENT_COUNT; }
 export function hasFragments() { return collectedCount > 0; }
 export function consumeFragment() {
   if (collectedCount > 0) {
@@ -100,7 +143,7 @@ export function consumeFragment() {
   return false;
 }
 export function resetFragments() {
-  FRAGMENT_POSITIONS.forEach(f => f.collected = false);
   collectedCount = 0;
-  fragmentMeshes.forEach(m => m.visible = true);
+  fragments = [];
+  fragmentMeshes = [];
 }

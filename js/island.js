@@ -4,54 +4,56 @@ import { getScene } from './scene.js';
 const TILE = 1;
 const blocks = []; // all island blocks { mesh, gridX, gridZ, baseY }
 
-const ISLAND_LAYOUT = [
-  // Row format: [startX, startZ, width, depth, height]
-  // Center island mass
-  [ -4, -4, 8, 8, 1 ],
-  [ -3, -3, 6, 6, 2 ],
-  [ -2, -2, 4, 4, 3 ],
-  // Hill on top
-  [ -1, -1, 2, 2, 4 ],
-  // Coastal extensions
-  [ -5,  0, 2, 3, 1 ],
-  [  3, -2, 3, 2, 1 ],
-  [ -2,  3, 2, 3, 1 ],
-  [  0, -5, 3, 2, 1 ],
-];
+const LAND_RADIUS = 14;
 
 // Colors for island blocks
 const grassColors = [0x7ec850, 0x6db840, 0x8ed860, 0x5ea838, 0x9ee870];
 const dirtColors = [0xc4a45a, 0xb8944a, 0xd4b46a];
 const cliffColors = [0x9e8e6e, 0xae9e7e, 0x8e7e5e];
 
+function hash2D(x, z) {
+  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+
 export function createIsland() {
   const scene = getScene();
   const group = new THREE.Group();
   group.name = 'island';
 
-  ISLAND_LAYOUT.forEach(([sx, sz, w, d, h]) => {
-    for (let x = sx; x < sx + w; x++) {
-      for (let z = sz; z < sz + d; z++) {
-        for (let y = 0; y < h; y++) {
-          const color = y === 0
-            ? dirtColors[Math.floor(Math.random() * dirtColors.length)]
-            : y === h - 1
-              ? grassColors[Math.floor(Math.random() * grassColors.length)]
-              : cliffColors[Math.floor(Math.random() * cliffColors.length)];
+  blocks.length = 0;
 
-          const mat = new THREE.MeshToonMaterial({ color });
-          const geo = new THREE.BoxGeometry(TILE * 0.95, TILE * 0.6, TILE * 0.95);
-          const mesh = new THREE.Mesh(geo, mat);
-          mesh.position.set(x * TILE, y * 0.6, z * TILE);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          group.add(mesh);
+  const rMax = Math.ceil(LAND_RADIUS + 1);
+  for (let gx = -rMax; gx <= rMax; gx++) {
+    for (let gz = -rMax; gz <= rMax; gz++) {
+      const dist = Math.sqrt(gx * gx + gz * gz);
+      const edge = LAND_RADIUS - 0.35 - hash2D(gx, gz) * 0.65;
+      if (dist > edge) continue;
 
-          blocks.push({ mesh, gridX: x, gridZ: z, baseY: y * 0.6, height: h });
-        }
+      const t = Math.max(0, (LAND_RADIUS - dist) / LAND_RADIUS);
+      const n = (hash2D(gx * 2.1, gz * 2.1) - 0.5) * 0.9 + (hash2D(gx * 0.9, gz * 0.9) - 0.5) * 0.6;
+      const raw = 1 + t * 3.2 + n;
+      const h = Math.max(1, Math.min(4, Math.floor(raw)));
+
+      for (let y = 0; y < h; y++) {
+        const color = y === 0
+          ? dirtColors[Math.floor(hash2D(gx + 10, gz + 20) * dirtColors.length)]
+          : y === h - 1
+            ? grassColors[Math.floor(hash2D(gx + 30, gz + 40) * grassColors.length)]
+            : cliffColors[Math.floor(hash2D(gx + 50, gz + 60) * cliffColors.length)];
+
+        const mat = new THREE.MeshToonMaterial({ color });
+        const geo = new THREE.BoxGeometry(TILE * 0.95, TILE * 0.6, TILE * 0.95);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(gx * TILE, y * 0.6, gz * TILE);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+
+        blocks.push({ mesh, gridX: gx, gridZ: gz, baseY: y * 0.6, height: h });
       }
     }
-  });
+  }
 
   scene.add(group);
   return group;

@@ -13,8 +13,8 @@ const VISION_RANGE = 8;
 const VISION_ANGLE = Math.PI * 0.6; // 120° cone
 const CHASE_DURATION = 6;
 const PATROL_POINTS_COUNT = 6;
-const PATROL_POINT_RADIUS_MIN = 2;
-const PATROL_POINT_RADIUS_MAX = 6;
+const PATROL_POINT_RADIUS_MIN = 6;
+const PATROL_POINT_RADIUS_MAX = 16;
 
 let pursuerMesh;
 let velocity = new THREE.Vector3();
