@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { getScene, getTileSize, getGridSize } from "./scene.js";
 import { getPlayerPosition } from "./player.js";
-import { isLand } from "./island.js";
+import { isLand, getCoverHeight } from "./island.js";
 import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
 
 const TILE = getTileSize();
@@ -214,6 +214,10 @@ export function updatePursuer(delta) {
         for (let step = 0.5; step < rayLen; step += 0.5) {
           const sx = Math.round((position.x + rayDir.x * step) / TILE);
           const sz = Math.round((position.z + rayDir.z * step) / TILE);
+          const t = step / rayLen;
+          const rayY = position.y + (playerPos.y - position.y) * t;
+          const cover = getCoverHeight(sx, sz);
+          if (cover > 0 && cover + 0.1 > rayY) { occluded = true; break; }
           if (isLand(sx, sz)) {
             const blockY = getGroundY(position.x + rayDir.x * step, position.z + rayDir.z * step);
             if (blockY > position.y) { occluded = true; break; }

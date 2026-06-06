@@ -5,6 +5,8 @@ const TILE = 1;
 const blocks = []; // all island blocks { mesh, gridX, gridZ, baseY }
 
 const LAND_RADIUS = 14;
+const foliageCover = new Map();
+let foliageGroup = null;
 
 // Colors for island blocks
 const grassColors = [0x7ec850, 0x6db840, 0x8ed860, 0x5ea838, 0x9ee870];
@@ -18,10 +20,15 @@ function hash2D(x, z) {
 
 export function createIsland() {
   const scene = getScene();
+  if (foliageGroup) {
+    scene.remove(foliageGroup);
+    foliageGroup = null;
+  }
   const group = new THREE.Group();
   group.name = 'island';
 
   blocks.length = 0;
+  foliageCover.clear();
 
   const rMax = Math.ceil(LAND_RADIUS + 1);
   for (let gx = -rMax; gx <= rMax; gx++) {
@@ -32,8 +39,8 @@ export function createIsland() {
 
       const t = Math.max(0, (LAND_RADIUS - dist) / LAND_RADIUS);
       const n = (hash2D(gx * 2.1, gz * 2.1) - 0.5) * 0.9 + (hash2D(gx * 0.9, gz * 0.9) - 0.5) * 0.6;
-      const raw = 1 + t * 3.2 + n;
-      const h = Math.max(1, Math.min(4, Math.floor(raw)));
+      const raw = 1 + t * 5.4 + n * 1.15;
+      const h = Math.max(1, Math.min(6, Math.floor(raw)));
 
       for (let y = 0; y < h; y++) {
         const color = y === 0
@@ -56,7 +63,122 @@ export function createIsland() {
   }
 
   scene.add(group);
+  createFoliage(scene);
   return group;
+}
+
+function createFoliage(scene) {
+  const group = new THREE.Group();
+  group.name = 'foliage';
+
+  const trunkMat = new THREE.MeshToonMaterial({ color: 0x8b6a3e });
+  const leafMatA = new THREE.MeshToonMaterial({ color: 0x4ea84a });
+  const leafMatB = new THREE.MeshToonMaterial({ color: 0x6db840 });
+  const grassMat = new THREE.MeshToonMaterial({ color: 0x78c85a });
+
+  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6);
+  const leafGeo = new THREE.DodecahedronGeometry(0.45, 0);
+  const bushGeo = new THREE.DodecahedronGeometry(0.22, 0);
+  const grassGeo = new THREE.ConeGeometry(0.08, 0.22, 5, 1);
+
+  const heroCandidates = [];
+  const rMax = Math.ceil(LAND_RADIUS - 1);
+  for (let gx = -rMax; gx <= rMax; gx++) {
+    for (let gz = -rMax; gz <= rMax; gz++) {
+      if (!isLand(gx, gz)) continue;
+      const d = Math.sqrt(gx * gx + gz * gz);
+      if (d > LAND_RADIUS - 1.2) continue;
+      if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) continue;
+      if (Math.abs(gx - 3) <= 1 && Math.abs(gz - 3) <= 1) continue;
+
+      const h = getTerrainHeight(gx, gz);
+      const y = h;
+      const r = hash2D(gx + 100, gz + 200);
+      const r2 = hash2D(gx + 300, gz + 400);
+      const isBeach = d > LAND_RADIUS - 3.2;
+      const isInner = d < LAND_RADIUS - 5.0;
+      if (!isBeach && isInner && h >= 1.1) {
+        heroCandidates.push({ gx, gz, y, k: hash2D(gx + 900, gz + 1200) });
+      }
+
+      if (!isBeach && r < 0.045) {
+        const tree = new THREE.Group();
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = 0.48;
+        tree.add(trunk);
+
+        const leaf = new THREE.Mesh(leafGeo, r2 < 0.5 ? leafMatA : leafMatB);
+        leaf.position.y = 1.06;
+        leaf.scale.setScalar(1.15 + r2 * 0.55);
+        leaf.rotation.set(r2 * 0.6, r2 * 2.0, r2 * 0.6);
+        tree.add(leaf);
+
+        tree.position.set(gx * TILE, y + 0.02, gz * TILE);
+        tree.rotation.y = r2 * Math.PI * 2;
+        group.add(tree);
+
+        foliageCover.set(`${gx},${gz}`, Math.max(foliageCover.get(`${gx},${gz}`) || 0, y + 1.65));
+      } else if (!isBeach && r < 0.11) {
+        const bush = new THREE.Mesh(bushGeo, r2 < 0.5 ? leafMatA : leafMatB);
+        bush.position.set(gx * TILE, y + 0.16, gz * TILE);
+        bush.scale.setScalar(0.85 + r2 * 0.35);
+        bush.rotation.set(0, r2 * Math.PI * 2, 0);
+        group.add(bush);
+        foliageCover.set(`${gx},${gz}`, Math.max(foliageCover.get(`${gx},${gz}`) || 0, y + 0.75));
+      } else if (r < 0.22) {
+        const bladeCount = 1 + Math.floor(r2 * 3);
+        for (let i = 0; i < bladeCount; i++) {
+          const g = new THREE.Mesh(grassGeo, grassMat);
+          const jx = (hash2D(gx * 5 + i, gz * 7 + i) - 0.5) * 0.45;
+          const jz = (hash2D(gx * 9 + i, gz * 3 + i) - 0.5) * 0.45;
+          const s = 0.6 + hash2D(gx * 11 + i, gz * 13 + i) * 0.8;
+          g.position.set(gx * TILE + jx, y + 0.11, gz * TILE + jz);
+          g.scale.setScalar(s);
+          g.rotation.y = hash2D(gx * 17 + i, gz * 19 + i) * Math.PI * 2;
+          group.add(g);
+        }
+      }
+    }
+  }
+
+  heroCandidates.sort((a, b) => a.k - b.k);
+  const heroCount = Math.min(4, heroCandidates.length);
+  for (let i = 0; i < heroCount; i++) {
+    const c = heroCandidates[i];
+    const r2 = hash2D(c.gx + 1500, c.gz + 1600);
+    const heroScale = 1.7 + r2 * 0.45;
+
+    const hero = new THREE.Group();
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.y = 0.55 * heroScale;
+    trunk.scale.setScalar(heroScale);
+    hero.add(trunk);
+
+    const leaf = new THREE.Mesh(leafGeo, r2 < 0.5 ? leafMatA : leafMatB);
+    leaf.position.y = 1.25 * heroScale;
+    leaf.scale.setScalar(heroScale * (1.25 + r2 * 0.25));
+    leaf.rotation.set(r2 * 0.6, r2 * 2.0, r2 * 0.6);
+    hero.add(leaf);
+
+    hero.position.set(c.gx * TILE, c.y + 0.02, c.gz * TILE);
+    hero.rotation.y = r2 * Math.PI * 2;
+    group.add(hero);
+    foliageCover.set(`${c.gx},${c.gz}`, Math.max(foliageCover.get(`${c.gx},${c.gz}`) || 0, c.y + 2.35 * heroScale));
+  }
+
+  group.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+
+  foliageGroup = group;
+  scene.add(group);
+}
+
+export function getCoverHeight(gx, gz) {
+  return foliageCover.get(`${Math.round(gx)},${Math.round(gz)}`) || 0;
 }
 
 export function getBlocks() { return blocks; }
@@ -91,7 +213,7 @@ export function modifyTerrainHeight(gx, gz, deltaY) {
 }
 
 // === Block Stacking / Building System ===
-const STACKABLE_HEIGHT = 3; // Max stack height
+const STACKABLE_HEIGHT = 6; // Max stack height
 
 // Place a new block on top of existing terrain
 export function placeBlock(gx, gz) {

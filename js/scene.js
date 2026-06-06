@@ -110,20 +110,7 @@ function createCircularGridTexture() {
 }
 
 function createSkyBackground() {
-  // Simple sky dome using a large hemisphere or just rely on scene background color
-  // Floating island silhouettes in the background
-  const bgMat = new THREE.MeshToonMaterial({ color: 0xc8d8e8 });
-  for (let i = 0; i < 5; i++) {
-    const x = (Math.random() - 0.5) * 30;
-    const y = 8 + Math.random() * 6;
-    const z = (Math.random() - 0.5) * 30;
-    const size = 0.6 + Math.random() * 1.5;
-    const geo = new THREE.BoxGeometry(size, size * 0.3, size);
-    const cloud = new THREE.Mesh(geo, bgMat);
-    cloud.position.set(x, y, z);
-    cloud.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
-    scene.add(cloud);
-  }
+  return;
 }
 
 function onResize() {

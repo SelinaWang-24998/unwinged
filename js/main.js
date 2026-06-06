@@ -86,7 +86,7 @@ function attachCameraControls() {
 // Clean up old scene objects AND old canvas
 function cleanupScene() {
   const scene = getScene();
-  ['player', 'pursuer', 'island', 'fragments', 'ripples', 'shallowWater'].forEach(name => {
+  ['player', 'pursuer', 'island', 'foliage', 'fragments', 'ripples', 'shallowWater'].forEach(name => {
     const obj = scene.getObjectByName(name);
     if (obj) scene.remove(obj);
   });
