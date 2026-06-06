@@ -13,11 +13,13 @@ const COLLECT_COLOR = 0xffdd44;
 const SPLASH_COLOR = 0x4488cc;
 const DUST_COLOR = 0xc4a45a;
 
-// Create a single particle
+// Shared geometry — created once, reused by all particles
+const sharedGeo = new THREE.SphereGeometry(0.05, 4, 4);
+
+// Create a single particle using shared geometry
 function createParticle(x, y, z, color, velocity, life) {
-  const geo = new THREE.SphereGeometry(0.05, 4, 4);
   const mat = new THREE.MeshBasicMaterial({ color, transparent: true });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(sharedGeo, mat);
   mesh.position.set(x, y, z);
   mesh.userData = {
     velocity: velocity.clone(),
@@ -133,7 +135,7 @@ export function updateParticles(delta) {
         }
       });
       
-      if (allDead || p.userData.life <= 0) {
+      if (allDead) {
         toRemove.push(group);
         groups.splice(g, 1);
       }
@@ -144,23 +146,23 @@ export function updateParticles(delta) {
   toRemove.forEach(group => {
     scene.remove(group);
     group.children.forEach(p => {
-      p.geometry.dispose();
-      p.material.dispose();
+      p.material.dispose(); // only dispose cloned material, NOT shared geometry
     });
   });
 }
 
 // Spawn ripple effect (visual only, no physics)
+const sharedRippleGeo = new THREE.RingGeometry(0.1, 0.2, 16);
+
 export function spawnRipple(x, y, z) {
   const scene = getScene();
-  const geo = new THREE.RingGeometry(0.1, 0.2, 16);
   const mat = new THREE.MeshBasicMaterial({
     color: 0xaaddff,
     transparent: true,
     opacity: 0.6,
     side: THREE.DoubleSide
   });
-  const ring = new THREE.Mesh(geo, mat);
+  const ring = new THREE.Mesh(sharedRippleGeo, mat);
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(x, y + 0.01, z);
   ring.userData = { life: 0.6, maxLife: 0.6 };
@@ -196,8 +198,7 @@ export function updateRipples(delta) {
   toRemove.reverse().forEach(i => {
     const ring = particleGroups.ripple[i];
     scene.remove(ring);
-    ring.geometry.dispose();
-    ring.material.dispose();
+    ring.material.dispose(); // only dispose material, NOT shared geometry
     particleGroups.ripple.splice(i, 1);
   });
 }
@@ -211,8 +212,8 @@ export function clearAllParticles() {
       scene.remove(group);
       if (group.children) {
         group.children.forEach(p => {
-          if (p.geometry) p.geometry.dispose();
           if (p.material) p.material.dispose();
+          // Do NOT dispose shared geometry
         });
       }
     });
@@ -223,7 +224,6 @@ export function clearAllParticles() {
   if (particleGroups.ripple) {
     particleGroups.ripple.forEach(ring => {
       scene.remove(ring);
-      ring.geometry.dispose();
       ring.material.dispose();
     });
     particleGroups.ripple = [];

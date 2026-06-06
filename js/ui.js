@@ -1,10 +1,14 @@
-import { getCollectedCount, getTotalFragments, hasFragments, consumeFragment } from './fragments.js';
-import { wasPlayerCaught, isChasing } from './pursuer.js';
-import { toggleGyroMode, getGyroMode } from './gyro.js';
-import { setKey, setJoystick, triggerJump, grabBlock } from './player.js';
-import { triggerJournal } from './journal.js';
-import { showReview, hideReview, isReviewVisible } from './journal.js';
-import { playAlert, playVictory, playGameOver } from './audio.js';
+import {
+  getCollectedCount,
+  getTotalCollectedEver,
+  getTotalFragments,
+} from "./fragments.js";
+import { wasPlayerCaught, isChasing } from "./pursuer.js";
+import { toggleGyroMode, getGyroMode } from "./gyro.js";
+import { setKey, setJoystick, triggerJump, grabBlock } from "./player.js";
+import { triggerJournal } from "./journal.js";
+import { showReview, hideReview, isReviewVisible } from "./journal.js";
+import { playAlert, playVictory, playGameOver } from "./audio.js";
 
 let timeRemaining = 360; // 6 minutes in seconds
 let gameRunning = false;
@@ -24,7 +28,7 @@ let isMobile = false;
 // 3-2-1 countdown before game starts
 function startCountdown() {
   let count = 3;
-  countdownOverlay.classList.remove('hidden');
+  countdownOverlay.classList.remove("hidden");
   countdownNumber.textContent = count;
 
   const interval = setInterval(() => {
@@ -32,12 +36,12 @@ function startCountdown() {
     if (count > 0) {
       countdownNumber.textContent = count;
       // Re-trigger pop animation
-      countdownNumber.style.animation = 'none';
+      countdownNumber.style.animation = "none";
       void countdownNumber.offsetHeight; // force reflow
-      countdownNumber.style.animation = 'countPop 0.6s ease-out';
+      countdownNumber.style.animation = "countPop 0.6s ease-out";
     } else {
       clearInterval(interval);
-      countdownOverlay.classList.add('hidden');
+      countdownOverlay.classList.add("hidden");
       gameRunning = true;
       if (onStartCallback) onStartCallback();
     }
@@ -45,66 +49,74 @@ function startCountdown() {
 }
 
 export function initUI() {
-  scoreEl = document.getElementById('score');
-  livesEl = document.getElementById('lives');
-  timerEl = document.getElementById('timer');
-  modeLabel = document.getElementById('mode-label');
-  startScreen = document.getElementById('start-screen');
-  endScreen = document.getElementById('end-screen');
-  endTitle = document.getElementById('end-title');
-  endScore = document.getElementById('end-score');
-  endJournalHint = document.getElementById('end-journal-hint');
-  restartBtn = document.getElementById('restart-btn');
-  startBtn = document.getElementById('start-btn');
-  countdownOverlay = document.getElementById('countdown-overlay');
-  countdownNumber = document.getElementById('countdown-number');
+  scoreEl = document.getElementById("score");
+  livesEl = document.getElementById("lives");
+  timerEl = document.getElementById("timer");
+  modeLabel = document.getElementById("mode-label");
+  startScreen = document.getElementById("start-screen");
+  endScreen = document.getElementById("end-screen");
+  endTitle = document.getElementById("end-title");
+  endScore = document.getElementById("end-score");
+  endJournalHint = document.getElementById("end-journal-hint");
+  restartBtn = document.getElementById("restart-btn");
+  startBtn = document.getElementById("start-btn");
+  countdownOverlay = document.getElementById("countdown-overlay");
+  countdownNumber = document.getElementById("countdown-number");
 
   // Detect mobile
-  isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 'ontouchstart' in window;
+  isMobile =
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    "ontouchstart" in window;
   if (isMobile) {
-    document.getElementById('mobile-controls')?.classList.remove('hidden');
+    document.getElementById("mobile-controls")?.classList.remove("hidden");
   }
 
   // Start button — show countdown first
-  startBtn.addEventListener('click', () => {
-    startScreen.classList.add('hidden');
+  startBtn.addEventListener("click", () => {
+    startScreen.classList.add("hidden");
     startCountdown();
   });
 
   // Restart button
-  restartBtn.addEventListener('click', () => {
-    endScreen.classList.add('hidden');
+  restartBtn.addEventListener("click", () => {
+    endScreen.classList.add("hidden");
     if (onRestartCallback) onRestartCallback();
   });
 
   // Keyboard input
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener("keydown", (e) => {
     setKey(e.code, true);
 
-    if (e.code === 'KeyQ') {
+    if (e.code === "KeyQ") {
       const mode = toggleGyroMode();
-      modeLabel.textContent = mode === 'pursuer' ? '追捕者' : '地形';
+      modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
     }
-    if (e.code === 'KeyE') {
+    if (e.code === "KeyE") {
       grabBlock();
     }
-    if (e.code === 'Tab') {
+    if (e.code === "Tab") {
       e.preventDefault();
-      if (isReviewVisible()) hideReview(); else showReview();
+      if (isReviewVisible()) hideReview();
+      else showReview();
     }
-    if (e.code === 'Space') e.preventDefault();
+    if (e.code === "Space") e.preventDefault();
 
     // PC gyro: Alt+Arrow to simulate gyro tilt (mode B: terrain/wave)
     if (e.altKey) {
       e.preventDefault();
-      const dirMap = { ArrowUp: { x: 0, z: 1 }, ArrowDown: { x: 0, z: -1 }, ArrowLeft: { x: -1, z: 0 }, ArrowRight: { x: 1, z: 0 } };
+      const dirMap = {
+        ArrowUp: { x: 0, z: 1 },
+        ArrowDown: { x: 0, z: -1 },
+        ArrowLeft: { x: -1, z: 0 },
+        ArrowRight: { x: 1, z: 0 },
+      };
       if (dirMap[e.code]) {
-        import('./gyro.js').then(m => m.pcGyroPulse(dirMap[e.code]));
+        import("./gyro.js").then((m) => m.pcGyroPulse(dirMap[e.code]));
       }
     }
   });
 
-  document.addEventListener('keyup', (e) => {
+  document.addEventListener("keyup", (e) => {
     setKey(e.code, false);
   });
 
@@ -114,8 +126,8 @@ export function initUI() {
 }
 
 function setupJoystick() {
-  const base = document.getElementById('joystick-base');
-  const thumb = document.getElementById('joystick-thumb');
+  const base = document.getElementById("joystick-base");
+  const thumb = document.getElementById("joystick-thumb");
   if (!base || !thumb) return;
 
   let active = false;
@@ -136,25 +148,40 @@ function setupJoystick() {
 
   const handleEnd = () => {
     active = false;
-    thumb.style.transform = 'translate(0, 0)';
+    thumb.style.transform = "translate(0, 0)";
     setJoystick(0, 0);
   };
 
-  base.addEventListener('touchstart', (e) => { active = true; handleMove(e.touches[0].clientX, e.touches[0].clientY); });
-  base.addEventListener('touchmove', (e) => { if (active) handleMove(e.touches[0].clientX, e.touches[0].clientY); });
-  base.addEventListener('touchend', handleEnd);
-  base.addEventListener('mousedown', (e) => { active = true; handleMove(e.clientX, e.clientY); });
-  document.addEventListener('mousemove', (e) => { if (active) handleMove(e.clientX, e.clientY); });
-  document.addEventListener('mouseup', handleEnd);
+  base.addEventListener("touchstart", (e) => {
+    active = true;
+    handleMove(e.touches[0].clientX, e.touches[0].clientY);
+  });
+  base.addEventListener("touchmove", (e) => {
+    if (active) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+  });
+  base.addEventListener("touchend", handleEnd);
+  base.addEventListener("mousedown", (e) => {
+    active = true;
+    handleMove(e.clientX, e.clientY);
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (active) handleMove(e.clientX, e.clientY);
+  });
+  document.addEventListener("mouseup", handleEnd);
 }
 
 function setupMobileButtons() {
-  document.getElementById('btn-jump')?.addEventListener('pointerdown', triggerJump);
-  document.getElementById('btn-mode')?.addEventListener('pointerdown', () => {
+  document
+    .getElementById("btn-jump")
+    ?.addEventListener("pointerdown", triggerJump);
+  document.getElementById("btn-mode")?.addEventListener("pointerdown", () => {
     const mode = toggleGyroMode();
-    if (modeLabel) modeLabel.textContent = mode === 'pursuer' ? '追捕者' : '地形';
+    if (modeLabel)
+      modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
   });
-  document.getElementById('btn-grab')?.addEventListener('pointerdown', grabBlock);
+  document
+    .getElementById("btn-grab")
+    ?.addEventListener("pointerdown", grabBlock);
 }
 
 export function updateUI(delta) {
@@ -163,41 +190,36 @@ export function updateUI(delta) {
   timeRemaining -= delta;
   if (timeRemaining <= 0) {
     timeRemaining = 0;
-    endGame(false);
+    endGame("time");
     return;
   }
 
   // Timer display
   const mins = Math.floor(timeRemaining / 60);
   const secs = Math.floor(timeRemaining % 60);
-  timerEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+  timerEl.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
   if (timeRemaining < 60) {
-    timerEl.parentElement?.classList.add('warning');
+    timerEl.parentElement?.classList.add("warning");
   }
 
   // Score / Lives display
   score = getCollectedCount();
   scoreEl.textContent = score;
-  lives = 1 + score;
   livesEl.textContent = lives;
 
   // Check pursuer catch
   if (wasPlayerCaught()) {
-    if (hasFragments()) {
-      consumeFragment();
-      triggerJournal('first_caught');
-      playAlert();
-      score = getCollectedCount();
-      scoreEl.textContent = score;
-      lives = 1 + score;
-      livesEl.textContent = lives;
-    } else {
+    lives -= 1;
+    livesEl.textContent = lives;
+    triggerJournal("first_caught");
+    if (lives < 1) {
       playGameOver();
-      endGame(false);
+      endGame("caught");
       return;
     }
+    playAlert();
   }
-  
+
   // Alert when being chased (every 2 seconds)
   if (isChasing() && Math.floor(timeRemaining * 2) % 4 === 0) {
     // playAlert is called less frequently to avoid spam
@@ -206,29 +228,35 @@ export function updateUI(delta) {
   // First move trigger
   if (!firstMoveTriggered) {
     firstMoveTriggered = true;
-    setTimeout(() => triggerJournal('first_move'), 2000);
+    setTimeout(() => triggerJournal("first_move"), 2000);
   }
 }
 
-export function endGame(won) {
+export function endGame(reason) {
   gameOver = true;
   gameRunning = false;
-  score = getCollectedCount();
-  endScreen.classList.remove('hidden');
+  score = getTotalCollectedEver(); // 使用"曾收集到的最大数量"
+  endScreen.classList.remove("hidden");
 
-  if (won || score >= 3) {
-    endTitle.textContent = '你发现了所有秘密';
-    endTitle.style.color = '#ffd700';
-    triggerJournal('all_fragments');
+  const line1 =
+    reason === "win" ? "恭喜你" : reason === "caught" ? "您被抓住了" : "时间到";
+  let line2 = "";
+
+  if (score >= getTotalFragments()) {
+    line2 = "你发现了所有秘密";
+    endTitle.style.color = "#ffd700";
+    triggerJournal("all_fragments");
   } else if (score > 0) {
-    endTitle.textContent = '时间到';
-    endTitle.style.color = '#ffaa44';
+    line2 = `你发现了${score}个秘密`;
+    endTitle.style.color = "#ffaa44";
   } else {
-    endTitle.textContent = '未能收集到碎片';
-    endTitle.style.color = '#ff6666';
+    line2 = "未能收集到碎片";
+    endTitle.style.color = "#ff6666";
   }
+
+  endTitle.innerHTML = `${line1}<br>${line2}`;
   endScore.textContent = `收集碎片: ${score}/${getTotalFragments()}`;
-  endJournalHint.textContent = '按 Tab 查看你发现的观察日志';
+  endJournalHint.textContent = "按 Tab 查看你发现的观察日志";
 }
 
 export function resetUI() {
@@ -238,18 +266,36 @@ export function resetUI() {
   lives = 1;
   score = 0;
   firstMoveTriggered = false;
-  scoreEl.textContent = '0';
-  livesEl.textContent = '1';
-  timerEl.textContent = '6:00';
-  timerEl.parentElement?.classList.remove('warning');
-  endScreen.classList.add('hidden');
-  startScreen.classList.remove('hidden');
-  if (countdownOverlay) countdownOverlay.classList.add('hidden');
+  scoreEl.textContent = "0";
+  livesEl.textContent = "1";
+  timerEl.textContent = "6:00";
+  timerEl.parentElement?.classList.remove("warning");
+  endScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  if (countdownOverlay) countdownOverlay.classList.add("hidden");
 }
 
-export function getTimeRemaining() { return timeRemaining; }
-export function isGameRunning() { return gameRunning; }
-export function isGameOver() { return gameOver; }
-export function onRestart(cb) { onRestartCallback = cb; }
-export function onStart(cb) { onStartCallback = cb; }
+export function getTimeRemaining() {
+  return timeRemaining;
+}
+export function isGameRunning() {
+  return gameRunning;
+}
+export function isGameOver() {
+  return gameOver;
+}
+export function onRestart(cb) {
+  onRestartCallback = cb;
+}
+export function onStart(cb) {
+  onStartCallback = cb;
+}
+
+// Force-refresh score & lives display (call after fragment collect/consume)
+export function refreshScoreDisplay() {
+  score = getCollectedCount();
+  if (scoreEl) scoreEl.textContent = score;
+  if (livesEl) livesEl.textContent = lives;
+}
+
 export { isMobile };

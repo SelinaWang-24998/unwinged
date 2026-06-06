@@ -7,8 +7,8 @@ import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
 const TILE = getTileSize();
 const GRID = getGridSize();
 const HALF = (GRID / 2) * TILE;
-const PATROL_SPEED = 2.5;
-const CHASE_SPEED = 4.0;   // was 0.036, now units/sec
+const PATROL_SPEED = 1.5;
+const CHASE_SPEED = 0.1; // was 0.036, now units/sec
 const VISION_RANGE = 8;
 const VISION_ANGLE = Math.PI * 0.6; // 120° cone
 const CHASE_DURATION = 6;
@@ -37,11 +37,16 @@ function generatePatrolPoints() {
     let attempts = 0;
     while (attempts < 50) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = PATROL_POINT_RADIUS_MIN + Math.random() * (PATROL_POINT_RADIUS_MAX - PATROL_POINT_RADIUS_MIN);
-      const x = Math.round(Math.cos(angle) * radius / TILE) * TILE;
-      const z = Math.round(Math.sin(angle) * radius / TILE) * TILE;
+      const radius =
+        PATROL_POINT_RADIUS_MIN +
+        Math.random() * (PATROL_POINT_RADIUS_MAX - PATROL_POINT_RADIUS_MIN);
+      const x = Math.round((Math.cos(angle) * radius) / TILE) * TILE;
+      const z = Math.round((Math.sin(angle) * radius) / TILE) * TILE;
       // Prefer land or shallow water
-      if (isLand(Math.round(x / TILE), Math.round(z / TILE)) || !isInDeepWater(Math.round(x / TILE), Math.round(z / TILE))) {
+      if (
+        isLand(Math.round(x / TILE), Math.round(z / TILE)) ||
+        !isInDeepWater(Math.round(x / TILE), Math.round(z / TILE))
+      ) {
         patrolPoints.push(new THREE.Vector3(x, 0, z));
         break;
       }
@@ -51,11 +56,13 @@ function generatePatrolPoints() {
     if (patrolPoints.length <= i) {
       const angle = Math.random() * Math.PI * 2;
       const radius = 3 + Math.random() * 3;
-      patrolPoints.push(new THREE.Vector3(
-        Math.cos(angle) * radius,
-        0,
-        Math.sin(angle) * radius
-      ));
+      patrolPoints.push(
+        new THREE.Vector3(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius,
+        ),
+      );
     }
   }
 }
@@ -201,8 +208,14 @@ export function updatePursuer(delta) {
           const sx = Math.round((position.x + rayDir.x * step) / TILE);
           const sz = Math.round((position.z + rayDir.z * step) / TILE);
           if (isLand(sx, sz)) {
-            const blockY = getGroundY(position.x + rayDir.x * step, position.z + rayDir.z * step);
-            if (blockY > position.y) { occluded = true; break; }
+            const blockY = getGroundY(
+              position.x + rayDir.x * step,
+              position.z + rayDir.z * step,
+            );
+            if (blockY > position.y) {
+              occluded = true;
+              break;
+            }
           }
         }
       }

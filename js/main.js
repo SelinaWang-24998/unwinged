@@ -4,10 +4,10 @@ import { createIsland } from './island.js';
 import { createOcean, updateOcean } from './ocean.js';
 import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
 import { createPursuer, updatePursuer, resetPursuer } from './pursuer.js';
-import { createFragments, updateFragments, checkFragmentCollection, resetFragments, onFragmentCollected } from './fragments.js';
+import { createFragments, updateFragments, checkFragmentCollection, resetFragments, onFragmentCollected, getTotalFragments } from './fragments.js';
 import { initGyro, updateGyro } from './gyro.js';
 import { initJournal, triggerJournal, resetJournal } from './journal.js';
-import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver } from './ui.js';
+import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver, refreshScoreDisplay } from './ui.js';
 import { updateParticles, clearAllParticles, spawnCollectParticles, spawnSplashParticles, spawnDustParticles } from './particles.js';
 import { updateRipples } from './particles.js';
 import { playCollect, playSplash, playAlert, playVictory, playGameOver, initAudioOnInteraction } from './audio.js';
@@ -112,15 +112,18 @@ onStart(() => {
     console.log('[DEBUG] Game start complete, entering game loop');
 
     onFragmentCollected((id, count) => {
+      // Immediately update score display (don't wait for next updateUI frame)
+      refreshScoreDisplay();
       if (count === 1) triggerJournal('first_fragment');
-      if (count >= 3) {
-        endGame(true);
+      if (count >= getTotalFragments()) {
+        endGame('win');
         playVictory();
-      } else {
-        playCollect();
-        const pos = getPlayerPosition();
-        spawnCollectParticles(pos.x, pos.y + 1, pos.z);
+        return;
       }
+
+      playCollect();
+      const pos = getPlayerPosition();
+      spawnCollectParticles(pos.x, pos.y + 1, pos.z);
     });
 
     startGameLoop();
