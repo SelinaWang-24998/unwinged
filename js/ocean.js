@@ -20,6 +20,8 @@ let shallowWaveTex = null;
 let deepWaveTex = null;
 let shallowFlowMesh = null;
 let deepFlowMesh = null;
+let waterOriginalZ = null; // Store original vertex Z positions to prevent cumulative drift
+let waveEffectIntensity = 0; // Current wave disturbance intensity (decays over time)
 
 function createWaveDirectionTexture(size = 256) {
   const canvas = document.createElement('canvas');
@@ -90,7 +92,7 @@ export function createOcean() {
   const shallowMat = new THREE.MeshPhongMaterial({
     color: 0x1a3d6e,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.38,
     specular: 0x88bbff,
     shininess: 60,
     side: THREE.DoubleSide,
@@ -123,7 +125,7 @@ export function createOcean() {
   const mat = new THREE.MeshPhongMaterial({
     color: 0x3388cc,
     transparent: true,
-    opacity: 0.65,
+    opacity: 0.55,
     specular: 0x4477aa,
     shininess: 40,
     side: THREE.DoubleSide,
@@ -135,6 +137,14 @@ export function createOcean() {
   waterMesh.position.y = -0.15;
   waterMesh.name = 'ocean';
   scene.add(waterMesh);
+
+  // Save original vertex Z positions to prevent cumulative drift on repeated createWave calls
+  const posAttr = waterMesh.geometry.attributes.position;
+  waterOriginalZ = new Float32Array(posAttr.count);
+  for (let i = 0; i < posAttr.count; i++) {
+    waterOriginalZ[i] = posAttr.getZ(i);
+  }
+  waveEffectIntensity = 0;
 
   const deepFlowMat = new THREE.MeshBasicMaterial({
     color: 0xa8ddff,
@@ -186,6 +196,31 @@ export function updateOcean(delta) {
   // Rotate wave direction slowly
   updateWaveDirection(delta);
   updateWaveDirectionVisuals(delta);
+
+  // Apply decaying wave disturbance to water mesh vertices (based on original positions)
+  if (waterMesh && waterMesh.geometry.attributes.position && waterOriginalZ) {
+    const pos = waterMesh.geometry.attributes.position;
+    if (waveEffectIntensity > 0.001) {
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const origZ = waterOriginalZ[i];
+        const disturbance = Math.sin(x * 2 + waveOffset * 1.5) * waveEffectIntensity * 0.25;
+        pos.setZ(i, origZ + disturbance);
+      }
+      pos.needsUpdate = true;
+      // Decay intensity over time
+      waveEffectIntensity *= (1 - delta * 1.5);
+    } else {
+      // Reset to original positions when disturbance fades
+      if (waveEffectIntensity > 0) {
+        for (let i = 0; i < pos.count; i++) {
+          pos.setZ(i, waterOriginalZ[i]);
+        }
+        pos.needsUpdate = true;
+        waveEffectIntensity = 0;
+      }
+    }
+  }
 }
 
 // Create wave effect (called by gyro mode B on sea)
@@ -200,16 +235,8 @@ export function createWave(direction, intensity) {
       r.position.y += Math.sin(dist * 2 + waveOffset) * intensity * 0.3;
     });
   }
-  // Animate water mesh vertices if needed
-  if (waterMesh && waterMesh.geometry.attributes.position) {
-    const pos = waterMesh.geometry.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getY(i); // note: plane is rotated, so Y is actually Z in world
-      pos.setZ(i, Math.sin(x * 2 + waveOffset) * intensity * 0.15);
-    }
-    pos.needsUpdate = true;
-  }
+  // Set wave disturbance intensity (applied in updateOcean, decays over time)
+  waveEffectIntensity = Math.min(1, waveEffectIntensity + intensity * 0.6);
 }
 
 // Check if position is in water (not on island land)

@@ -22,7 +22,7 @@ export function initScene(container) {
   // Scene
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
-  scene.fog = new THREE.Fog(0x87CEEB, 25, 50);
+  scene.fog = new THREE.Fog(0x87CEEB, 35, 70);
 
   // Isometric camera (orthographic, 45° angle)
   const aspect = window.innerWidth / window.innerHeight;
@@ -150,7 +150,7 @@ export function resetSceneForGame() {
 
   // Reset scene background & fog (may have been altered)
   scene.background = new THREE.Color(0x87CEEB);
-  scene.fog = new THREE.Fog(0x87CEEB, 25, 50);
+  scene.fog = new THREE.Fog(0x87CEEB, 35, 70);
 
   // Reset camera
   const aspect = window.innerWidth / window.innerHeight;

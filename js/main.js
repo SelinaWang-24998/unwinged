@@ -347,6 +347,12 @@ onRestart(() => {
   resetJournal();
   resetUI();
 
+  // Reset camera to defaults so previous drag/zoom doesn't carry over
+  camYaw = Math.PI / 4;
+  camRadius = Math.sqrt(16 * 16 + 16 * 16);
+  camHeight = 14;
+  targetZoom = 1;
+
   buildWorld();
   startBgLoop();
 });
