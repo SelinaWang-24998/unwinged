@@ -315,13 +315,12 @@ export function triggerJump() {
     jumpVelocity = JUMP_FORCE;
   }
 }
-export function grabBlock() {
+export function placeBlockAction() {
   const gp = getPlayerGridPos();
   const gx = gp.x;
   const gz = gp.z;
 
   if (isLand(gx, gz)) {
-    // On land: try to place or remove block
     if (canPlaceBlock(gx, gz)) {
       if (placeBlock(gx, gz)) {
         if (!hasTriggered("first_stack")) {
@@ -331,7 +330,18 @@ export function grabBlock() {
         spawnDustParticles(position.x, position.y + 0.5, position.z, 6);
         return true;
       }
-    } else if (canRemoveBlock(gx, gz)) {
+    }
+  }
+  return false;
+}
+
+export function grabBlockAction() {
+  const gp = getPlayerGridPos();
+  const gx = gp.x;
+  const gz = gp.z;
+
+  if (isLand(gx, gz)) {
+    if (canRemoveBlock(gx, gz)) {
       if (removeBlock(gx, gz)) {
         playTerrainDeform();
         spawnDustParticles(position.x, position.y + 0.5, position.z, 6);
@@ -339,7 +349,6 @@ export function grabBlock() {
       }
     }
   } else if (isInShallowWater(gx, gz, isLand)) {
-    // In shallow water: splash effect
     playSplash();
     spawnSplashParticles(position.x, position.y + 0.3, position.z, 8);
     return false;
