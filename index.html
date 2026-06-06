@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>插翅难飞</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="game-container"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="hud-left">
+    <div id="score-display">碎片: <span id="score">0</span>/3</div>
+    <div id="lives-display">生命: <span id="lives">1</span></div>
+  </div>
+  <div id="hud-right">
+    <div id="timer-display">时间: <span id="timer">6:00</span></div>
+    <div id="gyro-mode">模式: <span id="mode-label">地形</span></div>
+  </div>
+</div>
+
+<!-- Journal popup -->
+<div id="journal-popup" class="hidden">
+  <p id="journal-text"></p>
+</div>
+
+<!-- Journal review -->
+<div id="journal-review" class="hidden">
+  <h3>观察日志</h3>
+  <ul id="journal-list"></ul>
+  <button id="journal-close">关闭 [Tab]</button>
+</div>
+
+<!-- Start screen -->
+<div id="start-screen">
+  <p id="start-text">「如果你发现了异常，<br>请不要惊慌。」</p>
+  <button id="start-btn">进入岛屿</button>
+  <p id="start-hint">支持陀螺仪 | 手机体验更佳</p>
+</div>
+
+<!-- End screen -->
+<div id="end-screen" class="hidden">
+  <h2 id="end-title"></h2>
+  <p id="end-score"></p>
+  <p id="end-journal-hint"></p>
+  <button id="restart-btn">再来一次</button>
+</div>
+
+<!-- Mobile controls -->
+<div id="mobile-controls" class="hidden">
+  <div id="joystick-zone">
+    <div id="joystick-base">
+      <div id="joystick-thumb"></div>
+    </div>
+  </div>
+  <div id="mobile-buttons">
+    <button id="btn-jump">跳</button>
+    <button id="btn-mode">切换</button>
+    <button id="btn-grab">抓取</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
