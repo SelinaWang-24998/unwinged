@@ -25,12 +25,15 @@ import { playAlert, playVictory, playGameOver } from "./audio.js";
 const isByteDanceWebView = /aweme|ttwebview|toutiao|bytedance/i.test(
   navigator.userAgent || "",
 );
+function canFullscreen() {
+  const el = document.documentElement;
+  return !!(el && (el.requestFullscreen || el.webkitRequestFullscreen));
+}
 
 // === Fullscreen + Landscape Lock ===
 // Multi-path approach: fullscreen first, then orientation lock.
 // CSS rotate-prompt acts as fallback enforcement when neither works.
 export async function requestLandscape() {
-  if (isByteDanceWebView) return;
   // Step 1: try fullscreen (precondition for orientation.lock on Chrome/Android)
   let fsOk = false;
   try {
@@ -104,7 +107,11 @@ let endHonorsEl, homeBtn, honorBtn;
 let countdownOverlay, countdownNumber;
 let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn, pauseEndBtn;
 let honorPanel, honorList, honorClose;
-let leaderboardPanel, leaderboardList, leaderboardClose, leaderboardShare, leaderboardTabs;
+let leaderboardPanel,
+  leaderboardList,
+  leaderboardClose,
+  leaderboardShare,
+  leaderboardTabs;
 let isMobile = false;
 let lastGameStats = null; // stored after each game for leaderboard
 
@@ -342,9 +349,21 @@ function closeHonorPanel() {
 
 // === Leaderboard ===
 const FAKE_NAMES = [
-  "海岛探险家", "追风者", "碎片猎人", "无畏行者", "星语者",
-  "影之舞者", "深海旅人", "林间漫步", "风暴之子", "孤岛守望",
-  "逐光者", "风语者", "夜航船", "潮汐之力", "星轨",
+  "海岛探险家",
+  "追风者",
+  "碎片猎人",
+  "无畏行者",
+  "星语者",
+  "影之舞者",
+  "深海旅人",
+  "林间漫步",
+  "风暴之子",
+  "孤岛守望",
+  "逐光者",
+  "风语者",
+  "夜航船",
+  "潮汐之力",
+  "星轨",
 ];
 
 function buildLeaderboardData(tab) {
@@ -353,7 +372,8 @@ function buildLeaderboardData(tab) {
   // Player entry
   const me = { name: "我", isMe: true };
   if (tab === "time") {
-    me.score = p.bestWinTime != null ? `${p.bestWinTime.toFixed(1)}s` : "无记录";
+    me.score =
+      p.bestWinTime != null ? `${p.bestWinTime.toFixed(1)}s` : "无记录";
     me.val = p.bestWinTime ?? Infinity;
   } else if (tab === "stars") {
     me.score = `${p.totalThreeStar} 次三星`;
@@ -370,11 +390,15 @@ function buildLeaderboardData(tab) {
     const nameIdx = Math.floor(((seed + i * 7) * 0.618) % FAKE_NAMES.length);
     let val;
     if (tab === "time") {
-      val = p.bestWinTime != null
-        ? p.bestWinTime * (0.65 + (seed + i * 13) % 100 / 200)
-        : 120 + (seed + i * 11) % 200;
+      val =
+        p.bestWinTime != null
+          ? p.bestWinTime * (0.65 + ((seed + i * 13) % 100) / 200)
+          : 120 + ((seed + i * 11) % 200);
     } else if (tab === "stars") {
-      val = Math.max(0, p.totalThreeStar + Math.floor(((seed + i * 5) % 9) - 4));
+      val = Math.max(
+        0,
+        p.totalThreeStar + Math.floor(((seed + i * 5) % 9) - 4),
+      );
     } else {
       const unlocked = p.unlocked ? Object.keys(p.unlocked).length : 0;
       val = Math.max(0, unlocked + Math.floor(((seed + i * 3) % 7) - 3));
@@ -398,26 +422,28 @@ function buildLeaderboardData(tab) {
 function renderLeaderboard(tab) {
   if (!leaderboardList) return;
   const entries = buildLeaderboardData(tab);
-  leaderboardList.innerHTML = entries.map(e => {
-    const rankCls = e.rank <= 3 ? ' top' : '';
-    const youCls = e.isMe ? ' lb-you' : '';
-    return `<li class="${youCls}">
+  leaderboardList.innerHTML = entries
+    .map((e) => {
+      const rankCls = e.rank <= 3 ? " top" : "";
+      const youCls = e.isMe ? " lb-you" : "";
+      return `<li class="${youCls}">
       <span class="lb-rank${rankCls}">${e.rank}</span>
       <span class="lb-name">${e.name}</span>
       <span class="lb-score">${e.score}</span>
     </li>`;
-  }).join('');
+    })
+    .join("");
   // Update tab active state
   if (leaderboardTabs) {
-    leaderboardTabs.querySelectorAll('.lb-tab').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.tab === tab);
+    leaderboardTabs.querySelectorAll(".lb-tab").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
     });
   }
 }
 
 function openLeaderboard() {
   if (!leaderboardPanel) return;
-  renderLeaderboard('time');
+  renderLeaderboard("time");
   leaderboardPanel.classList.remove("hidden");
 }
 
@@ -429,25 +455,29 @@ async function shareLeaderboard() {
   const p = progress;
   const honors = p.unlocked ? Object.keys(p.unlocked).length : 0;
   const text = [
-    '🏝️ 插翅难飞 — 我的游戏记录',
+    "🏝️ 插翅难飞 — 我的游戏记录",
     `⭐ 三星通关: ${p.totalThreeStar} 次`,
     `🏆 荣誉: ${honors} 个`,
     `🎮 游戏局数: ${p.gamesPlayed}`,
-    p.bestWinTime ? `⚡ 最快通关: ${p.bestWinTime.toFixed(1)}s` : '',
-    '',
-    '你能超越我吗？',
-  ].filter(Boolean).join('\n');
+    p.bestWinTime ? `⚡ 最快通关: ${p.bestWinTime.toFixed(1)}s` : "",
+    "",
+    "你能超越我吗？",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   if (navigator.share) {
     try {
-      await navigator.share({ title: '插翅难飞', text });
-    } catch (e) { /* user cancelled */ }
+      await navigator.share({ title: "插翅难飞", text });
+    } catch (e) {
+      /* user cancelled */
+    }
   } else {
     try {
       await navigator.clipboard.writeText(text);
-      alert('已复制到剪贴板！');
+      alert("已复制到剪贴板！");
     } catch (e) {
-      prompt('复制以下内容分享:', text);
+      prompt("复制以下内容分享:", text);
     }
   }
 }
@@ -553,12 +583,42 @@ export function initUI() {
     return true;
   }
 
-  function startFromHome() {
+  async function ensureMobileFullscreenLandscape() {
+    if (!isMobile) return true;
+    await requestLandscape();
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const isPortrait = W < H;
+    const rotatePrompt = document.getElementById("rotate-prompt");
+    if (isPortrait) {
+      document.body.classList.add("portrait-lock");
+      if (rotatePrompt) rotatePrompt.style.display = "flex";
+      return false;
+    }
+    document.body.classList.remove("portrait-lock");
+    if (rotatePrompt) rotatePrompt.style.display = "none";
+
+    const isFs =
+      !!document.fullscreenElement || !!document.webkitFullscreenElement;
+    if (isByteDanceWebView || !canFullscreen()) {
+      if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
+      return true;
+    }
+    const fullscreenPrompt = document.getElementById("fullscreen-prompt");
+    if (!isFs) {
+      if (fullscreenPrompt) fullscreenPrompt.classList.remove("hidden");
+      return false;
+    }
+    return true;
+  }
+
+  async function startFromHome() {
     if (gameRunning || gameOver || paused || countdownActive) return;
-    startScreen.classList.add("hidden");
     // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
     requestGyroPermission(); // 不 await，避免阻塞倒计时
-    requestLandscape();
+    const ok = await ensureMobileFullscreenLandscape();
+    if (!ok) return;
+    startScreen.classList.add("hidden");
     startCountdown();
   }
   startBtn.addEventListener("pointerdown", (e) => {
@@ -621,17 +681,18 @@ export function initUI() {
   });
   leaderboardShare?.addEventListener("click", () => shareLeaderboard());
   leaderboardTabs?.addEventListener("click", (e) => {
-    const tab = e.target.closest('.lb-tab')?.dataset.tab;
+    const tab = e.target.closest(".lb-tab")?.dataset.tab;
     if (tab) renderLeaderboard(tab);
   });
 
   // Restart button
-  function restartRun() {
-    endScreen.classList.add("hidden");
+  async function restartRun() {
     if (onRestartCallback) onRestartCallback();
-    startScreen?.classList.add("hidden");
-    requestLandscape();
     requestGyroPermission();
+    const ok = await ensureMobileFullscreenLandscape();
+    if (!ok) return;
+    endScreen.classList.add("hidden");
+    startScreen?.classList.add("hidden");
     startCountdown();
   }
   restartBtn.addEventListener("pointerdown", (e) => {
@@ -663,21 +724,27 @@ export function initUI() {
   });
   pauseRestartBtn?.addEventListener("pointerdown", (e) => {
     if (!shouldAcceptPointerAction(e)) return;
-    setPaused(false);
-    if (onRestartCallback) onRestartCallback();
-    startScreen?.classList.add("hidden");
-    requestLandscape();
-    requestGyroPermission();
-    startCountdown();
+    (async () => {
+      setPaused(false);
+      if (onRestartCallback) onRestartCallback();
+      requestGyroPermission();
+      const ok = await ensureMobileFullscreenLandscape();
+      if (!ok) return;
+      startScreen?.classList.add("hidden");
+      startCountdown();
+    })();
   });
   pauseRestartBtn?.addEventListener("click", (e) => {
     if (!shouldAcceptPointerAction(e)) return;
-    setPaused(false);
-    if (onRestartCallback) onRestartCallback();
-    startScreen?.classList.add("hidden");
-    requestLandscape();
-    requestGyroPermission();
-    startCountdown();
+    (async () => {
+      setPaused(false);
+      if (onRestartCallback) onRestartCallback();
+      requestGyroPermission();
+      const ok = await ensureMobileFullscreenLandscape();
+      if (!ok) return;
+      startScreen?.classList.add("hidden");
+      startCountdown();
+    })();
   });
 
   function endRunFromPause() {
@@ -696,10 +763,10 @@ export function initUI() {
   // Keyboard visualizer helper
   function updateKeyViz(code, pressed) {
     const el = document.querySelector(`#keyboard-viz [data-key="${code}"]`);
-    if (el) el.classList.toggle('active', pressed);
-    if (code === 'ControlLeft' || code === 'ControlRight') {
-      const ctrl = document.querySelector('#keyboard-viz .mod-key');
-      if (ctrl) ctrl.classList.toggle('active', pressed);
+    if (el) el.classList.toggle("active", pressed);
+    if (code === "ControlLeft" || code === "ControlRight") {
+      const ctrl = document.querySelector("#keyboard-viz .mod-key");
+      if (ctrl) ctrl.classList.toggle("active", pressed);
     }
   }
 
@@ -839,12 +906,6 @@ function initOrientationGuards() {
     if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
   }
 
-  if (isByteDanceWebView) {
-    hideRotate();
-    hideFsPrompt();
-    return;
-  }
-
   // Core handler: check orientation and enforce
   function handleOrientationChange() {
     setTimeout(() => {
@@ -852,18 +913,17 @@ function initOrientationGuards() {
       const H = window.innerHeight;
       const isPortrait = W < H;
       const isMobile = W < 768 || H < 768;
+      if (isPortrait && isMobile) showRotate();
+      else hideRotate();
 
-      const isStartVisible =
-        startScreen && !startScreen.classList.contains("hidden");
-      const shouldLock = (gameRunning || countdownActive) && !isStartVisible;
-
-      if (isPortrait && isMobile && shouldLock) {
-        showRotate();
-        // Best-effort: try to re-lock (works if still in fullscreen)
-        requestLandscape();
-      } else {
-        hideRotate();
+      const isFs =
+        !!document.fullscreenElement || !!document.webkitFullscreenElement;
+      if (!isMobile || isByteDanceWebView || !canFullscreen()) {
+        hideFsPrompt();
+        return;
       }
+      if (!isFs) showFsPrompt();
+      else hideFsPrompt();
     }, 150);
   }
 
@@ -879,6 +939,17 @@ function initOrientationGuards() {
   // Fullscreen prompt button → retry
   const fsBtn = document.getElementById("fullscreen-prompt-btn");
   if (fsBtn) {
+    fsBtn.addEventListener("pointerdown", async (e) => {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+      try {
+        e.stopPropagation();
+      } catch (err) {}
+      hideFsPrompt();
+      await requestLandscape();
+      handleOrientationChange();
+    });
     fsBtn.addEventListener("click", async () => {
       hideFsPrompt();
       await requestLandscape();
