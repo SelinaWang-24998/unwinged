@@ -39,6 +39,42 @@ export function deformTerrain(gx, gz, deltaY, radius = 1) {
   }
 }
 
+export function tiltTerrainDirectional(gx, gz, dirX, dirZ, intensity, radius = 2, amount = 0.9, invert = false) {
+  const len = Math.hypot(dirX, dirZ);
+  if (len < 1e-6) return;
+  const inv = invert ? -1 : 1;
+  const nxDir = (dirX / len) * inv;
+  const nzDir = (dirZ / len) * inv;
+  const normRadius = Math.max(1, radius);
+
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dz = -radius; dz <= radius; dz++) {
+      const nx = Math.round(gx) + dx;
+      const nz = Math.round(gz) + dz;
+
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      const falloff = Math.max(0, 1 - dist / (radius + 0.5));
+      if (falloff <= 0) continue;
+
+      const signed = (dx * nxDir + dz * nzDir) / normRadius;
+      const actualDelta = amount * intensity * falloff * signed;
+      if (Math.abs(actualDelta) < 1e-6) continue;
+
+      const blockList = getBlockAt(nx, nz);
+      blockList.forEach(b => {
+        const key = `${b.gridX},${b.gridZ}`;
+        if (!originalHeights.has(key)) {
+          originalHeights.set(key, b.mesh.position.y);
+        }
+
+        const newY = Math.max(-1.5, Math.min(4, b.mesh.position.y + actualDelta));
+        b.mesh.position.y = newY;
+        b.baseY = newY;
+      });
+    }
+  }
+}
+
 // Raise terrain (for building up)
 export function raiseTerrain(gx, gz, amount = 0.3) {
   deformTerrain(gx, gz, amount, 1);
