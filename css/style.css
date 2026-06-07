@@ -146,26 +146,22 @@ body { overflow:hidden; background:#1a1a2e; font-family:'Segoe UI',sans-serif; t
   align-items:center;
 }
 #pause-title { font-size:18px; letter-spacing:2px; }
-#resume-btn {
-  padding:10px 24px;
+#resume-btn, #pause-restart-btn, #pause-end-btn {
+  width:180px;
+  height:44px;
+  padding:0 24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   font-size:16px;
+  line-height:1;
   background:rgba(255,255,255,0.1);
   color:#fff;
   border:1px solid rgba(255,255,255,0.25);
   border-radius:12px;
   cursor:pointer;
 }
-#resume-btn:active { background:rgba(255,255,255,0.2); }
-#pause-restart-btn {
-  padding:10px 24px;
-  font-size:16px;
-  background:rgba(255,255,255,0.1);
-  color:#fff;
-  border:1px solid rgba(255,255,255,0.25);
-  border-radius:12px;
-  cursor:pointer;
-}
-#pause-restart-btn:active { background:rgba(255,255,255,0.2); }
+#resume-btn:active, #pause-restart-btn:active, #pause-end-btn:active { background:rgba(255,255,255,0.2); }
 
 #countdown-overlay {
   position:fixed; top:0; left:0; right:0; bottom:0;

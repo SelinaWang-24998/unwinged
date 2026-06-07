@@ -102,7 +102,7 @@ let scoreEl, livesEl, timerEl, modeLabel, startScreen, endScreen;
 let endTitle, endScore, endJournalHint, restartBtn, startBtn;
 let endHonorsEl, homeBtn, honorBtn;
 let countdownOverlay, countdownNumber;
-let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn;
+let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn, pauseEndBtn;
 let honorPanel, honorList, honorClose;
 let isMobile = false;
 
@@ -404,6 +404,7 @@ export function initUI() {
   pauseOverlay = document.getElementById("pause-overlay");
   resumeBtn = document.getElementById("resume-btn");
   pauseRestartBtn = document.getElementById("pause-restart-btn");
+  pauseEndBtn = document.getElementById("pause-end-btn");
   honorPanel = document.getElementById("honor-panel");
   honorList = document.getElementById("honor-list");
   honorClose = document.getElementById("honor-close");
@@ -534,6 +535,19 @@ export function initUI() {
     requestLandscape();
     requestGyroPermission();
     startCountdown();
+  });
+
+  function endRunFromPause() {
+    if (!gameRunning || gameOver) return;
+    endGame("quit");
+  }
+  pauseEndBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    endRunFromPause();
+  });
+  pauseEndBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    endRunFromPause();
   });
 
   // Keyboard visualizer helper
@@ -954,7 +968,13 @@ export function endGame(reason) {
   renderHonorList();
 
   const line1 =
-    reason === "win" ? "恭喜你" : reason === "caught" ? "您被抓住了" : "时间到";
+    reason === "win"
+      ? "恭喜你"
+      : reason === "caught"
+        ? "您被抓住了"
+        : reason === "quit"
+          ? "已结束"
+          : "时间到";
   let line2 = "";
 
   if (score >= getTotalFragments()) {
