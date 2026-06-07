@@ -1,5 +1,4 @@
 // Gyroscope system - dual mode
-import * as THREE from "three";
 import { gyroControlPursuer } from "./pursuer.js";
 import { deformTerrain } from "./terrain.js";
 import { createWave } from "./ocean.js";
@@ -141,21 +140,30 @@ export function updateGyro(delta) {
       if (!camera) {
         gyroControlPursuer(tiltX, tiltZ, intensity);
       } else {
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.y = 0;
-        if (forward.lengthSq() < 1e-8) {
-          gyroControlPursuer(tiltX, tiltZ, intensity);
+        const e = camera.matrixWorld.elements;
+        const rx = e[0];
+        const rz = e[2];
+        let fx = -e[8];
+        let fz = -e[10];
+        const fl = Math.hypot(fx, fz);
+        if (fl > 1e-8) {
+          fx /= fl;
+          fz /= fl;
         } else {
-          forward.normalize();
-          const up = new THREE.Vector3(0, 1, 0);
-          const right = new THREE.Vector3().crossVectors(forward, up).normalize();
-          const worldDir = new THREE.Vector3()
-            .addScaledVector(right, tiltX)
-            .addScaledVector(forward, tiltZ);
-          if (worldDir.lengthSq() > 1e-8) worldDir.normalize();
-          gyroControlPursuer(worldDir.x, worldDir.z, intensity);
+          fx = 0;
+          fz = 1;
         }
+        const rl = Math.hypot(rx, rz);
+        const rnx = rl > 1e-8 ? rx / rl : 1;
+        const rnz = rl > 1e-8 ? rz / rl : 0;
+        let wx = rnx * tiltX + fx * tiltZ;
+        let wz = rnz * tiltX + fz * tiltZ;
+        const wl = Math.hypot(wx, wz);
+        if (wl > 1e-8) {
+          wx /= wl;
+          wz /= wl;
+        }
+        gyroControlPursuer(wx, wz, intensity);
       }
       pulseCooldown = PULSE_COOLDOWN;
     }
