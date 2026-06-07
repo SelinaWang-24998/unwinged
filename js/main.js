@@ -5,7 +5,7 @@ import { createOcean, updateOcean } from './ocean.js';
 import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
 import { createPursuer, updatePursuer, resetPursuer } from './pursuer.js';
 import { createFragments, updateFragments, checkFragmentCollection, resetFragments, onFragmentCollected, getTotalFragments } from './fragments.js';
-import { initGyro, updateGyro } from './gyro.js';
+import { initGyro, updateGyro, resetGyro } from './gyro.js';
 import { initJournal, triggerJournal, resetJournal } from './journal.js';
 import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver, refreshScoreDisplay, isPaused } from './ui.js';
 import { updateParticles, clearAllParticles, spawnCollectParticles, spawnSplashParticles, spawnDustParticles } from './particles.js';
@@ -351,6 +351,7 @@ onRestart(() => {
   resetFragments();
   resetJournal();
   resetUI();
+  resetGyro();
 
   // Reset camera to defaults so previous drag/zoom doesn't carry over
   camYaw = Math.PI / 4;

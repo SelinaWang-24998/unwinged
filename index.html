@@ -129,23 +129,60 @@
         <div id="pause-title">已暂停</div>
         <button id="resume-btn" type="button">继续</button>
         <button id="pause-restart-btn" type="button">重新开始</button>
+        <button id="pause-end-btn" type="button">结束游戏</button>
       </div>
     </div>
 
-    <!-- Mobile controls -->
-    <div id="mobile-controls" class="hidden">
-      <div id="joystick-zone">
-        <div id="joystick-base">
-          <div id="joystick-thumb"></div>
+<!-- Mobile controls -->
+<div id="mobile-controls" class="hidden">
+  <div id="joystick-zone">
+    <div id="joystick-base">
+      <div id="joystick-thumb"></div>
+    </div>
+  </div>
+  <div id="mobile-buttons">
+    <button id="btn-jump">跳</button>
+    <button id="btn-mode">切换</button>
+    <button id="btn-place">放置</button>
+    <button id="btn-grab">抓取</button>
+  </div>
+</div>
+
+  <!-- Keyboard Visualizer -->
+  <div id="keyboard-viz">
+    <div class="kb-row">
+      <!-- WASD cluster (keyboard layout) -->
+      <div class="kb-cluster">
+        <div class="kb-wasd">
+          <span class="kb-key" data-key="KeyW" style="grid-area:w;">W</span>
+          <span class="kb-key" data-key="KeyA" style="grid-area:a;">A</span>
+          <span class="kb-key" data-key="KeyS" style="grid-area:s;">S</span>
+          <span class="kb-key" data-key="KeyD" style="grid-area:d;">D</span>
         </div>
       </div>
-      <div id="mobile-buttons">
-        <button id="btn-jump">跳</button>
-        <button id="btn-mode">切换</button>
-        <button id="btn-place">放置</button>
-        <button id="btn-grab">抓取</button>
+      <!-- Arrow cluster (T-layout) -->
+      <div class="kb-cluster">
+        <div class="kb-arrows">
+          <span class="kb-key" data-key="ArrowUp" style="grid-area:u;">↑</span>
+          <span class="kb-key" data-key="ArrowLeft" style="grid-area:l;">←</span>
+          <span class="kb-key" data-key="ArrowDown" style="grid-area:d2;">↓</span>
+          <span class="kb-key" data-key="ArrowRight" style="grid-area:r;">→</span>
+        </div>
       </div>
+      <span class="kb-sep"></span>
+      <span class="kb-key" data-key="Space">跳</span>
+      <span class="kb-key" data-key="KeyQ">Q</span>
+      <span class="kb-key" data-key="KeyE">E</span>
+      <span class="kb-key" data-key="KeyF">F</span>
+      <span class="kb-key" data-key="Tab">Tab</span>
+      <span class="kb-sep"></span>
+      <!-- Gyro parameters display -->
+      <span class="kb-gyro">β:<b id="kb-beta">-</b></span>
+      <span class="kb-gyro">γ:<b id="kb-gamma">-</b></span>
+      <span class="kb-gyro">倾角:<b id="kb-tilt">0</b>°</span>
+      <span class="kb-gyro" id="kb-mode-label" style="display:none;">模式:<b id="kb-mode">-</b></span>
     </div>
+  </div>
 
     <!-- Gyro Debug Panel (safe to remove in production) -->
     <div

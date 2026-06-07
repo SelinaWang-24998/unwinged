@@ -102,7 +102,7 @@ let scoreEl, livesEl, timerEl, modeLabel, startScreen, endScreen;
 let endTitle, endScore, endJournalHint, restartBtn, startBtn;
 let endHonorsEl, homeBtn, honorBtn;
 let countdownOverlay, countdownNumber;
-let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn;
+let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn, pauseEndBtn;
 let honorPanel, honorList, honorClose;
 let isMobile = false;
 
@@ -404,6 +404,7 @@ export function initUI() {
   pauseOverlay = document.getElementById("pause-overlay");
   resumeBtn = document.getElementById("resume-btn");
   pauseRestartBtn = document.getElementById("pause-restart-btn");
+  pauseEndBtn = document.getElementById("pause-end-btn");
   honorPanel = document.getElementById("honor-panel");
   honorList = document.getElementById("honor-list");
   honorClose = document.getElementById("honor-close");
@@ -536,8 +537,32 @@ export function initUI() {
     startCountdown();
   });
 
+  function endRunFromPause() {
+    if (!gameRunning || gameOver) return;
+    endGame("quit");
+  }
+  pauseEndBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    endRunFromPause();
+  });
+  pauseEndBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    endRunFromPause();
+  });
+
+  // Keyboard visualizer helper
+  function updateKeyViz(code, pressed) {
+    const el = document.querySelector(`#keyboard-viz [data-key="${code}"]`);
+    if (el) el.classList.toggle('active', pressed);
+    if (code === 'ControlLeft' || code === 'ControlRight') {
+      const ctrl = document.querySelector('#keyboard-viz .mod-key');
+      if (ctrl) ctrl.classList.toggle('active', pressed);
+    }
+  }
+
   // Keyboard input
   document.addEventListener("keydown", (e) => {
+    updateKeyViz(e.code, true);
     if (e.code === "KeyQ") {
       const mode = toggleGyroMode();
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
@@ -577,6 +602,7 @@ export function initUI() {
   });
 
   document.addEventListener("keyup", (e) => {
+    updateKeyViz(e.code, false);
     setKey(e.code, false);
   });
 
@@ -942,7 +968,13 @@ export function endGame(reason) {
   renderHonorList();
 
   const line1 =
-    reason === "win" ? "恭喜你" : reason === "caught" ? "您被抓住了" : "时间到";
+    reason === "win"
+      ? "恭喜你"
+      : reason === "caught"
+        ? "您被抓住了"
+        : reason === "quit"
+          ? "已结束"
+          : "时间到";
   let line2 = "";
 
   if (score >= getTotalFragments()) {
