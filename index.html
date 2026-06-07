@@ -1,96 +1,136 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>插翅难飞</title>
-<link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-<div id="game-container"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>插翅难飞</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="game-container"></div>
 
-<!-- HUD -->
-<div id="hud">
-  <div id="hud-left">
-    <div id="journal-mini">日志<br><span id="journal-mini-lines"></span></div>
-  </div>
-  <div id="hud-right">
-    <div id="score-display">碎片: <span id="score">0</span>/3</div>
-    <div id="lives-display">生命: <span id="lives">1</span></div>
-    <div id="timer-display">时间: <span id="timer">6:00</span></div>
-    <div id="gyro-mode">模式: <span id="mode-label">地形</span></div>
-    <button id="pause-btn" type="button">暂停</button>
-  </div>
-</div>
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hud-left">
+        <div id="journal-mini">
+          日志<br /><span id="journal-mini-lines"></span>
+        </div>
+      </div>
+      <div id="hud-right">
+        <div id="score-display">碎片: <span id="score">0</span>/3</div>
+        <div id="lives-display">生命: <span id="lives">1</span></div>
+        <div id="timer-display">时间: <span id="timer">6:00</span></div>
+        <div id="gyro-mode">模式: <span id="mode-label">地形</span></div>
+        <button id="pause-btn" type="button">暂停</button>
+      </div>
+    </div>
 
-<!-- Journal popup -->
-<div id="journal-popup" class="hidden">
-  <p id="journal-text"></p>
-</div>
+    <!-- Journal popup -->
+    <div id="journal-popup" class="hidden">
+      <p id="journal-text"></p>
+    </div>
 
-<!-- Journal review -->
-<div id="journal-review" class="hidden">
-  <h3>观察日志</h3>
-  <ul id="journal-list"></ul>
-  <button id="journal-close">关闭 [Tab]</button>
-</div>
+    <!-- Journal review -->
+    <div id="journal-review" class="hidden">
+      <h3>观察日志</h3>
+      <ul id="journal-list"></ul>
+      <button id="journal-close">关闭 [Tab]</button>
+    </div>
 
-<!-- Rotate prompt (portrait → landscape) -->
-<div id="rotate-prompt">
-  <svg width="80" height="80" viewBox="0 0 80 80">
-    <rect x="20" y="15" width="40" height="50" rx="6" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
-    <line x1="25" y1="22" x2="40" y2="22" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
-    <circle cx="40" cy="38" r="6" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.5"/>
-    <polyline points="18,50 10,58 2,50" fill="none" stroke="rgba(255,215,0,0.8)" stroke-width="3" stroke-linecap="round"/>
-    <polyline points="18,50 10,58" fill="none" stroke="rgba(255,215,0,0.8)" stroke-width="3" stroke-linecap="round"/>
-  </svg>
-  <p>请旋转设备<br><span>横屏体验更佳</span></p>
-</div>
+    <!-- Rotate prompt (portrait → landscape) -->
+    <div id="rotate-prompt">
+      <svg width="80" height="80" viewBox="0 0 80 80">
+        <rect
+          x="20"
+          y="15"
+          width="40"
+          height="50"
+          rx="6"
+          fill="none"
+          stroke="rgba(255,255,255,0.6)"
+          stroke-width="2.5"
+        />
+        <line
+          x1="25"
+          y1="22"
+          x2="40"
+          y2="22"
+          stroke="rgba(255,255,255,0.3)"
+          stroke-width="2"
+        />
+        <circle
+          cx="40"
+          cy="38"
+          r="6"
+          fill="none"
+          stroke="rgba(255,255,255,0.6)"
+          stroke-width="2.5"
+        />
+        <polyline
+          points="18,50 10,58 2,50"
+          fill="none"
+          stroke="rgba(255,215,0,0.8)"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+        <polyline
+          points="18,50 10,58"
+          fill="none"
+          stroke="rgba(255,215,0,0.8)"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+      </svg>
+      <p>请旋转设备<br /><span>横屏体验更佳</span></p>
+    </div>
 
-<!-- Fullscreen prompt (shown when user exits fullscreen) -->
-<div id="fullscreen-prompt" class="hidden">
-  <p>请重新进入全屏</p>
-  <button id="fullscreen-prompt-btn">进入全屏</button>
-</div>
+    <!-- Fullscreen prompt (shown when user exits fullscreen) -->
+    <div id="fullscreen-prompt" class="hidden">
+      <p>请重新进入全屏</p>
+      <button id="fullscreen-prompt-btn">进入全屏</button>
+    </div>
 
-<!-- Countdown overlay -->
-<div id="countdown-overlay" class="hidden">
-  <span id="countdown-number">3</span>
-</div>
+    <!-- Countdown overlay -->
+    <div id="countdown-overlay" class="hidden">
+      <span id="countdown-number">3</span>
+    </div>
 
-<!-- Start screen -->
-<div id="start-screen">
-  <p id="start-text">「如果你发现了异常，<br>请不要惊慌。」</p>
-  <button id="start-btn">进入岛屿</button>
-  <p id="start-hint">支持陀螺仪 | 手机体验更佳</p>
-</div>
+    <!-- Start screen -->
+    <div id="start-screen">
+      <p id="start-text">「如果你发现了异常，<br />请不要惊慌。」</p>
+      <button id="start-btn">进入岛屿</button>
+      <p id="start-hint">支持陀螺仪 | 手机体验更佳</p>
+    </div>
 
-<!-- End screen -->
-<div id="end-screen" class="hidden">
-  <h2 id="end-title"></h2>
-  <p id="end-score"></p>
-  <p id="end-journal-hint"></p>
-  <p id="end-honors"></p>
-  <div id="end-actions">
-    <button id="home-btn" type="button">返回主页</button>
-    <button id="restart-btn" type="button">再来一局</button>
-    <button id="honor-btn" type="button">我的荣誉</button>
-  </div>
-</div>
+    <!-- End screen -->
+    <div id="end-screen" class="hidden">
+      <h2 id="end-title"></h2>
+      <p id="end-score"></p>
+      <p id="end-journal-hint"></p>
+      <p id="end-honors"></p>
+      <div id="end-actions">
+        <button id="home-btn" type="button">返回主页</button>
+        <button id="restart-btn" type="button">再来一局</button>
+        <button id="honor-btn" type="button">我的荣誉</button>
+      </div>
+    </div>
 
-<div id="honor-panel" class="hidden">
-  <h3>我的荣誉</h3>
-  <ul id="honor-list"></ul>
-  <button id="honor-close" type="button">关闭</button>
-</div>
+    <div id="honor-panel" class="hidden">
+      <h3>我的荣誉</h3>
+      <ul id="honor-list"></ul>
+      <button id="honor-close" type="button">关闭</button>
+    </div>
 
-<div id="pause-overlay" class="hidden">
-  <div id="pause-panel">
-    <div id="pause-title">已暂停</div>
-    <button id="resume-btn" type="button">继续</button>
-    <button id="pause-restart-btn" type="button">重新开始</button>
-  </div>
-</div>
+    <div id="pause-overlay" class="hidden">
+      <div id="pause-panel">
+        <div id="pause-title">已暂停</div>
+        <button id="resume-btn" type="button">继续</button>
+        <button id="pause-restart-btn" type="button">重新开始</button>
+      </div>
+    </div>
 
 <!-- Mobile controls -->
 <div id="mobile-controls" class="hidden">
@@ -143,52 +183,73 @@
     </div>
   </div>
 
-  <!-- Gyro Debug Panel (safe to remove in production) -->
-  <div id="gyro-debug" style="position:fixed;top:10px;left:10px;z-index:200;background:rgba(0,0,0,0.82);color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:6px;line-height:1.6;max-width:220px;pointer-events:none;">
-    <div>gyro-debug</div>
-    <div>perm: <span id="db-perm">-</span></div>
-    <div>events: <span id="db-evt">0</span></div>
-    <div>beta: <span id="db-beta">-</span></div>
-    <div>gamma: <span id="db-gamma">-</span></div>
-    <div>alpha: <span id="db-alpha">-</span></div>
-    <div>maxTilt: <span id="db-tilt">0</span></div>
-    <div>mode: <span id="db-mode">terrain</span></div>
-    <div>cooldown: <span id="db-cd">0</span></div>
-  </div>
+    <!-- Gyro Debug Panel (safe to remove in production) -->
+    <div
+      id="gyro-debug"
+      style="
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 200;
+        background: rgba(0, 0, 0, 0.82);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 11px;
+        padding: 10px;
+        border-radius: 6px;
+        line-height: 1.6;
+        max-width: 220px;
+        pointer-events: none;
+      "
+    >
+      <div>gyro-debug</div>
+      <div>perm: <span id="db-perm">-</span></div>
+      <div>events: <span id="db-evt">0</span></div>
+      <div>beta: <span id="db-beta">-</span></div>
+      <div>gamma: <span id="db-gamma">-</span></div>
+      <div>alpha: <span id="db-alpha">-</span></div>
+      <div>maxTilt: <span id="db-tilt">0</span></div>
+      <div>mode: <span id="db-mode">terrain</span></div>
+      <div>cooldown: <span id="db-cd">0</span></div>
+    </div>
 
-  <script>
-    (function () {
-      function showBootError(err) {
+    <script>
+      (function () {
+        function showBootError(err) {
+          try {
+            var msg =
+              err && (err.stack || err.message)
+                ? err.stack || err.message
+                : String(err);
+            var el = document.createElement("div");
+            el.style.cssText = [
+              // 'position:fixed',
+              // 'top:0',
+              // 'left:0',
+              // 'right:0',
+              // 'bottom:0',
+              // 'z-index:99999',
+              // 'background:#0a0a1e',
+              // 'color:#ffdddd',
+              // 'padding:16px',
+              // 'font-family:monospace',
+              // 'white-space:pre-wrap',
+              // 'overflow:auto',
+              // 'box-sizing:border-box'
+            ].join(";");
+            el.textContent =
+              "启动失败（可能是不支持 ES Module 或资源被拦截）：\n\n" + msg;
+            document.body.appendChild(el);
+          } catch (e) {}
+        }
+
         try {
-          var msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-          var el = document.createElement('div');
-          el.style.cssText = [
-            'position:fixed',
-            'top:0',
-            'left:0',
-            'right:0',
-            'bottom:0',
-            'z-index:99999',
-            'background:#0a0a1e',
-            'color:#ffdddd',
-            'padding:16px',
-            'font-family:monospace',
-            'white-space:pre-wrap',
-            'overflow:auto',
-            'box-sizing:border-box'
-          ].join(';');
-          el.textContent = '启动失败（可能是不支持 ES Module 或资源被拦截）：\n\n' + msg;
-          document.body.appendChild(el);
-        } catch (e) {}
-      }
-
-      try {
-        // Dynamic import works in modern WebViews; if module scripts are blocked, this gives us a chance to surface a readable error.
-        import('./js/main.js').catch(showBootError);
-      } catch (e) {
-        showBootError(e);
-      }
-    })();
-  </script>
-</body>
+          // Dynamic import works in modern WebViews; if module scripts are blocked, this gives us a chance to surface a readable error.
+          import("./js/main.js").catch(showBootError);
+        } catch (e) {
+          showBootError(e);
+        }
+      })();
+    </script>
+  </body>
 </html>

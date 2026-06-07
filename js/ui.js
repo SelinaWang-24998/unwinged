@@ -22,10 +22,15 @@ import { triggerJournal } from "./journal.js";
 import { showReview, hideReview, isReviewVisible } from "./journal.js";
 import { playAlert, playVictory, playGameOver } from "./audio.js";
 
+const isByteDanceWebView = /aweme|ttwebview|toutiao|bytedance/i.test(
+  navigator.userAgent || "",
+);
+
 // === Fullscreen + Landscape Lock ===
 // Multi-path approach: fullscreen first, then orientation lock.
 // CSS rotate-prompt acts as fallback enforcement when neither works.
 export async function requestLandscape() {
+  if (isByteDanceWebView) return;
   // Step 1: try fullscreen (precondition for orientation.lock on Chrome/Android)
   let fsOk = false;
   try {
@@ -85,6 +90,7 @@ let gameRunning = false;
 let gameOver = false;
 let paused = false;
 let countdownActive = false;
+let countdownIntervalId = null;
 let lives = 1;
 let score = 0;
 let onRestartCallback = null;
@@ -260,7 +266,7 @@ function loadProgress() {
       totalThreeStar: parsed.totalThreeStar ?? 0,
       unlocked: parsed.unlocked ?? {},
     };
-  } catch {
+  } catch (e) {
     return {
       gamesPlayed: 0,
       bestWinTime: null,
@@ -278,7 +284,7 @@ function loadProgress() {
 function saveProgress() {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-  } catch {}
+  } catch (e) {}
 }
 
 function hasUnlocked(id) {
@@ -352,7 +358,12 @@ function startCountdown() {
   countdownOverlay.classList.remove("hidden");
   countdownNumber.textContent = count;
 
-  const interval = setInterval(() => {
+  if (countdownIntervalId) {
+    clearInterval(countdownIntervalId);
+    countdownIntervalId = null;
+  }
+
+  countdownIntervalId = setInterval(() => {
     count--;
     if (count > 0) {
       countdownNumber.textContent = count;
@@ -361,7 +372,8 @@ function startCountdown() {
       void countdownNumber.offsetHeight; // force reflow
       countdownNumber.style.animation = "countPop 0.6s ease-out";
     } else {
-      clearInterval(interval);
+      clearInterval(countdownIntervalId);
+      countdownIntervalId = null;
       countdownOverlay.classList.add("hidden");
       gameRunning = true;
       countdownActive = false;
@@ -404,6 +416,22 @@ export function initUI() {
     document.getElementById("mobile-controls")?.classList.remove("hidden");
   }
 
+  let lastPointerActionAt = 0;
+  function shouldAcceptPointerAction(e) {
+    const now = performance.now();
+    if (now - lastPointerActionAt < 450) return false;
+    lastPointerActionAt = now;
+    if (e) {
+      try {
+        e.preventDefault();
+      } catch (err) {}
+      try {
+        e.stopPropagation();
+      } catch (err) {}
+    }
+    return true;
+  }
+
   function startFromHome() {
     if (gameRunning || gameOver || paused || countdownActive) return;
     startScreen.classList.add("hidden");
@@ -412,34 +440,94 @@ export function initUI() {
     requestLandscape();
     startCountdown();
   }
-  startBtn.addEventListener("pointerdown", startFromHome);
-  startBtn.addEventListener("click", startFromHome);
+  startBtn.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    startFromHome();
+  });
+  startBtn.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    startFromHome();
+  });
 
-  homeBtn?.addEventListener("click", () => {
+  function goHome() {
     endScreen.classList.add("hidden");
     closeHonorPanel();
     if (onRestartCallback) onRestartCallback();
+  }
+
+  homeBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    goHome();
+  });
+  homeBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    goHome();
   });
 
-  honorBtn?.addEventListener("click", () => openHonorPanel());
-  honorClose?.addEventListener("click", () => closeHonorPanel());
+  honorBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    openHonorPanel();
+  });
+  honorBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    openHonorPanel();
+  });
+  honorClose?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    closeHonorPanel();
+  });
+  honorClose?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    closeHonorPanel();
+  });
 
   // Restart button
-  restartBtn.addEventListener("click", () => {
+  function restartRun() {
     endScreen.classList.add("hidden");
     if (onRestartCallback) onRestartCallback();
     startScreen?.classList.add("hidden");
     requestLandscape();
     requestGyroPermission();
     startCountdown();
+  }
+  restartBtn.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    restartRun();
+  });
+  restartBtn.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    restartRun();
   });
 
-  pauseBtn?.addEventListener("click", () => {
+  pauseBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
     if (!gameRunning || gameOver) return;
     setPaused(!paused);
   });
-  resumeBtn?.addEventListener("click", () => setPaused(false));
-  pauseRestartBtn?.addEventListener("click", () => {
+  pauseBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    if (!gameRunning || gameOver) return;
+    setPaused(!paused);
+  });
+  resumeBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    setPaused(false);
+  });
+  resumeBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    setPaused(false);
+  });
+  pauseRestartBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    setPaused(false);
+    if (onRestartCallback) onRestartCallback();
+    startScreen?.classList.add("hidden");
+    requestLandscape();
+    requestGyroPermission();
+    startCountdown();
+  });
+  pauseRestartBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
     setPaused(false);
     if (onRestartCallback) onRestartCallback();
     startScreen?.classList.add("hidden");
@@ -594,6 +682,12 @@ function initOrientationGuards() {
     if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
   }
 
+  if (isByteDanceWebView) {
+    hideRotate();
+    hideFsPrompt();
+    return;
+  }
+
   // Core handler: check orientation and enforce
   function handleOrientationChange() {
     setTimeout(() => {
@@ -715,7 +809,13 @@ export function endGame(reason) {
   gameOver = true;
   gameRunning = false;
   paused = false;
+  countdownActive = false;
+  if (countdownIntervalId) {
+    clearInterval(countdownIntervalId);
+    countdownIntervalId = null;
+  }
   pauseOverlay?.classList.add("hidden");
+  countdownOverlay?.classList.add("hidden");
   score = getTotalCollectedEver(); // 使用"曾收集到的最大数量"
   endScreen.classList.remove("hidden");
 
@@ -895,6 +995,11 @@ export function resetUI() {
   gameRunning = false;
   gameOver = false;
   paused = false;
+  countdownActive = false;
+  if (countdownIntervalId) {
+    clearInterval(countdownIntervalId);
+    countdownIntervalId = null;
+  }
   lives = 1;
   score = 0;
   firstMoveTriggered = false;
