@@ -104,7 +104,9 @@ let endHonorsEl, homeBtn, honorBtn;
 let countdownOverlay, countdownNumber;
 let pauseBtn, pauseOverlay, resumeBtn, pauseRestartBtn, pauseEndBtn;
 let honorPanel, honorList, honorClose;
+let leaderboardPanel, leaderboardList, leaderboardClose, leaderboardShare, leaderboardTabs;
 let isMobile = false;
+let lastGameStats = null; // stored after each game for leaderboard
 
 const PROGRESS_KEY = "unwinged_progress_v1";
 const HONORS = [
@@ -281,6 +283,8 @@ function loadProgress() {
   }
 }
 
+let progress = loadProgress();
+
 function saveProgress() {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
@@ -336,7 +340,117 @@ function closeHonorPanel() {
   honorPanel?.classList.add("hidden");
 }
 
-let progress = loadProgress();
+// === Leaderboard ===
+const FAKE_NAMES = [
+  "海岛探险家", "追风者", "碎片猎人", "无畏行者", "星语者",
+  "影之舞者", "深海旅人", "林间漫步", "风暴之子", "孤岛守望",
+  "逐光者", "风语者", "夜航船", "潮汐之力", "星轨",
+];
+
+function buildLeaderboardData(tab) {
+  const p = progress;
+  const entries = [];
+  // Player entry
+  const me = { name: "我", isMe: true };
+  if (tab === "time") {
+    me.score = p.bestWinTime != null ? `${p.bestWinTime.toFixed(1)}s` : "无记录";
+    me.val = p.bestWinTime ?? Infinity;
+  } else if (tab === "stars") {
+    me.score = `${p.totalThreeStar} 次三星`;
+    me.val = p.totalThreeStar;
+  } else {
+    const unlocked = p.unlocked ? Object.keys(p.unlocked).length : 0;
+    me.score = `${unlocked} 个荣誉`;
+    me.val = unlocked;
+  }
+
+  // Generate fake entries around player's level
+  const seed = p.gamesPlayed || 1;
+  for (let i = 0; i < 9; i++) {
+    const nameIdx = Math.floor(((seed + i * 7) * 0.618) % FAKE_NAMES.length);
+    let val;
+    if (tab === "time") {
+      val = p.bestWinTime != null
+        ? p.bestWinTime * (0.65 + (seed + i * 13) % 100 / 200)
+        : 120 + (seed + i * 11) % 200;
+    } else if (tab === "stars") {
+      val = Math.max(0, p.totalThreeStar + Math.floor(((seed + i * 5) % 9) - 4));
+    } else {
+      const unlocked = p.unlocked ? Object.keys(p.unlocked).length : 0;
+      val = Math.max(0, unlocked + Math.floor(((seed + i * 3) % 7) - 3));
+    }
+    entries.push({ name: FAKE_NAMES[nameIdx], score: "", val, isMe: false });
+  }
+  entries.push(me);
+  // Sort: lower time better, higher stars/honors better
+  if (tab === "time") entries.sort((a, b) => a.val - b.val);
+  else entries.sort((a, b) => b.val - a.val);
+  // Format scores after sort
+  entries.forEach((e, i) => {
+    if (!e.score) {
+      e.score = tab === "time" ? `${e.val.toFixed(1)}s` : `${e.val}`;
+    }
+    e.rank = i + 1;
+  });
+  return entries;
+}
+
+function renderLeaderboard(tab) {
+  if (!leaderboardList) return;
+  const entries = buildLeaderboardData(tab);
+  leaderboardList.innerHTML = entries.map(e => {
+    const rankCls = e.rank <= 3 ? ' top' : '';
+    const youCls = e.isMe ? ' lb-you' : '';
+    return `<li class="${youCls}">
+      <span class="lb-rank${rankCls}">${e.rank}</span>
+      <span class="lb-name">${e.name}</span>
+      <span class="lb-score">${e.score}</span>
+    </li>`;
+  }).join('');
+  // Update tab active state
+  if (leaderboardTabs) {
+    leaderboardTabs.querySelectorAll('.lb-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+  }
+}
+
+function openLeaderboard() {
+  if (!leaderboardPanel) return;
+  renderLeaderboard('time');
+  leaderboardPanel.classList.remove("hidden");
+}
+
+function closeLeaderboard() {
+  leaderboardPanel?.classList.add("hidden");
+}
+
+async function shareLeaderboard() {
+  const p = progress;
+  const honors = p.unlocked ? Object.keys(p.unlocked).length : 0;
+  const text = [
+    '🏝️ 插翅难飞 — 我的游戏记录',
+    `⭐ 三星通关: ${p.totalThreeStar} 次`,
+    `🏆 荣誉: ${honors} 个`,
+    `🎮 游戏局数: ${p.gamesPlayed}`,
+    p.bestWinTime ? `⚡ 最快通关: ${p.bestWinTime.toFixed(1)}s` : '',
+    '',
+    '你能超越我吗？',
+  ].filter(Boolean).join('\n');
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: '插翅难飞', text });
+    } catch (e) { /* user cancelled */ }
+  } else {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('已复制到剪贴板！');
+    } catch (e) {
+      prompt('复制以下内容分享:', text);
+    }
+  }
+}
 let runStats = null;
 
 function resetRunStats() {
@@ -408,6 +522,12 @@ export function initUI() {
   honorPanel = document.getElementById("honor-panel");
   honorList = document.getElementById("honor-list");
   honorClose = document.getElementById("honor-close");
+  leaderboardPanel = document.getElementById("leaderboard-panel");
+  leaderboardList = document.getElementById("leaderboard-list");
+  leaderboardClose = document.getElementById("leaderboard-close");
+  leaderboardShare = document.getElementById("leaderboard-share");
+  leaderboardTabs = document.getElementById("leaderboard-tabs");
+  const leaderboardBtn = document.getElementById("leaderboard-btn");
 
   // Detect mobile
   isMobile =
@@ -453,6 +573,7 @@ export function initUI() {
   function goHome() {
     endScreen.classList.add("hidden");
     closeHonorPanel();
+    closeLeaderboard();
     if (onRestartCallback) onRestartCallback();
   }
 
@@ -480,6 +601,28 @@ export function initUI() {
   honorClose?.addEventListener("click", (e) => {
     if (!shouldAcceptPointerAction(e)) return;
     closeHonorPanel();
+  });
+
+  leaderboardBtn?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    openLeaderboard();
+  });
+  leaderboardBtn?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    openLeaderboard();
+  });
+  leaderboardClose?.addEventListener("pointerdown", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    closeLeaderboard();
+  });
+  leaderboardClose?.addEventListener("click", (e) => {
+    if (!shouldAcceptPointerAction(e)) return;
+    closeLeaderboard();
+  });
+  leaderboardShare?.addEventListener("click", () => shareLeaderboard());
+  leaderboardTabs?.addEventListener("click", (e) => {
+    const tab = e.target.closest('.lb-tab')?.dataset.tab;
+    if (tab) renderLeaderboard(tab);
   });
 
   // Restart button
