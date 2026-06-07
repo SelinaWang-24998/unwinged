@@ -1,8 +1,8 @@
 import * as THREE from './lib/three.module.js';
 
-const GRID_SIZE = 44;
+const GRID_SIZE = 50;
 const TILE_SIZE = 1;
-const MAP_RADIUS = 20 * TILE_SIZE;
+const MAP_RADIUS = 25 * TILE_SIZE;
 
 let scene, camera, renderer;
 let gridGroup;

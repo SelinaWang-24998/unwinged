@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.module.js';
 import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer, disposeObject3D } from './scene.js';
-import { createIsland } from './island.js';
+import { createIsland, newGameSeed } from './island.js';
 import { createOcean, updateOcean } from './ocean.js';
 import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
 import { createPursuer, updatePursuer, resetPursuer } from './pursuer.js';
@@ -293,6 +293,7 @@ initAudioOnInteraction(); // Initialize audio on first user interaction
 clock = new THREE.Clock();
 
 // Background world
+newGameSeed();
 buildWorld();
 startBgLoop();
 
@@ -303,6 +304,7 @@ onStart(async () => {
     cleanupScene();
     resetSceneForGame();   // Reuse existing renderer — no WebGL context recreation
     clock = new THREE.Clock();
+    newGameSeed();
     buildWorld();
     console.log('[DEBUG] World built, creating player...');
 
@@ -359,6 +361,7 @@ onRestart(() => {
   camHeight = 14;
   targetZoom = 1;
 
+  newGameSeed();
   buildWorld();
   startBgLoop();
 });

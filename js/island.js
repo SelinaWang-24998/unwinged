@@ -4,18 +4,25 @@ import { getScene } from './scene.js';
 const TILE = 1;
 const blocks = []; // all island blocks { mesh, gridX, gridZ, baseY }
 
-const LAND_RADIUS = 14;
+const LAND_RADIUS = 17;
 const foliageCover = new Map();
 let foliageGroup = null;
 
 // Colors for island blocks
 const grassColors = [0x7ec850, 0x6db840, 0x8ed860, 0x5ea838, 0x9ee870];
+const sandColors = [0xe8d5a3, 0xf0ddb0, 0xdcc890, 0xebd59e];
 const dirtColors = [0xc4a45a, 0xb8944a, 0xd4b46a];
 const cliffColors = [0x9e8e6e, 0xae9e7e, 0x8e7e5e];
 
+let gameSeed = 0;
+
 function hash2D(x, z) {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+  const s = Math.sin(x * 127.1 + z * 311.7 + gameSeed) * 43758.5453123;
   return s - Math.floor(s);
+}
+
+export function newGameSeed() {
+  gameSeed = Math.random() * 9999;
 }
 
 export function createIsland() {
@@ -30,24 +37,48 @@ export function createIsland() {
   blocks.length = 0;
   foliageCover.clear();
 
-  const rMax = Math.ceil(LAND_RADIUS + 1);
+  const rMax = Math.ceil(LAND_RADIUS + 5);
   for (let gx = -rMax; gx <= rMax; gx++) {
     for (let gz = -rMax; gz <= rMax; gz++) {
       const dist = Math.sqrt(gx * gx + gz * gz);
-      const edge = LAND_RADIUS - 0.35 - hash2D(gx, gz) * 0.65;
+
+      // Multi-octave edge noise — irregular coastline with peninsulas/bays
+      const edgeNoise =
+        hash2D(gx * 0.4, gz * 0.4) * 3.5 +
+        hash2D(gx * 1.1, gz * 1.1) * 2.5 +
+        hash2D(gx * 2.5, gz * 2.5) * 1.0;
+      const edge = LAND_RADIUS - 2.0 - edgeNoise;
       if (dist > edge) continue;
 
-      const t = Math.max(0, (LAND_RADIUS - dist) / LAND_RADIUS);
-      const n = (hash2D(gx * 2.1, gz * 2.1) - 0.5) * 0.9 + (hash2D(gx * 0.9, gz * 0.9) - 0.5) * 0.6;
-      const raw = 1 + t * 5.4 + n * 1.15;
-      const h = Math.max(1, Math.min(6, Math.floor(raw)));
+      // Distance falloff — uses edge distance for more natural taper
+      const t = Math.max(0, (edge - dist) / edge);
+
+      // Multi-octave height noise — varied terrain relief
+      const n =
+        (hash2D(gx * 1.7, gz * 1.7) - 0.5) * 1.0 +
+        (hash2D(gx * 0.7, gz * 0.7) - 0.5) * 1.2 +
+        (hash2D(gx * 3.5, gz * 3.5) - 0.5) * 0.4;
+      const raw = 1 + t * 5.5 + n * 1.5;
+      const h = Math.max(1, Math.min(7, Math.floor(raw)));
+
+      // Beach zone: t < 0.22 → all sand
+      const isBeach = t < 0.22;
+      // Grass only appears well inland (t >= 0.30), one ring inward from beach
+      const isGrass = t >= 0.30;
 
       for (let y = 0; y < h; y++) {
-        const color = y === 0
-          ? dirtColors[Math.floor(hash2D(gx + 10, gz + 20) * dirtColors.length)]
-          : y === h - 1
+        let color;
+        if (isBeach) {
+          color = sandColors[Math.floor(hash2D(gx + 60, gz + 70) * sandColors.length)];
+        } else if (y === 0) {
+          color = dirtColors[Math.floor(hash2D(gx + 10, gz + 20) * dirtColors.length)];
+        } else if (y === h - 1) {
+          color = isGrass
             ? grassColors[Math.floor(hash2D(gx + 30, gz + 40) * grassColors.length)]
-            : cliffColors[Math.floor(hash2D(gx + 50, gz + 60) * cliffColors.length)];
+            : sandColors[Math.floor(hash2D(gx + 60, gz + 70) * sandColors.length)];
+        } else {
+          color = cliffColors[Math.floor(hash2D(gx + 50, gz + 60) * cliffColors.length)];
+        }
 
         const mat = new THREE.MeshToonMaterial({ color });
         const geo = new THREE.BoxGeometry(TILE * 0.95, TILE * 0.6, TILE * 0.95);
@@ -82,12 +113,12 @@ function createFoliage(scene) {
   const grassGeo = new THREE.ConeGeometry(0.08, 0.22, 5, 1);
 
   const heroCandidates = [];
-  const rMax = Math.ceil(LAND_RADIUS - 1);
+  const rMax = Math.ceil(LAND_RADIUS + 5);
   for (let gx = -rMax; gx <= rMax; gx++) {
     for (let gz = -rMax; gz <= rMax; gz++) {
       if (!isLand(gx, gz)) continue;
       const d = Math.sqrt(gx * gx + gz * gz);
-      if (d > LAND_RADIUS - 1.2) continue;
+      if (d > LAND_RADIUS - 4.0) continue; // no foliage on beach
       if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) continue;
       if (Math.abs(gx - 3) <= 1 && Math.abs(gz - 3) <= 1) continue;
 
@@ -95,8 +126,8 @@ function createFoliage(scene) {
       const y = h;
       const r = hash2D(gx + 100, gz + 200);
       const r2 = hash2D(gx + 300, gz + 400);
-      const isBeach = d > LAND_RADIUS - 3.2;
-      const isInner = d < LAND_RADIUS - 5.0;
+      const isBeach = d > LAND_RADIUS - 6.0;
+      const isInner = d < LAND_RADIUS - 7.0;
       if (!isBeach && isInner && h >= 1.1) {
         heroCandidates.push({ gx, gz, y, k: hash2D(gx + 900, gz + 1200) });
       }

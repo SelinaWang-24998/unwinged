@@ -7,9 +7,9 @@ let waveOffset = 0;
 const GRID = getGridSize();
 const TILE = getTileSize();
 const MAP_RADIUS = getMapRadius();
-const LAND_RADIUS = 14;
+const LAND_RADIUS = 17;
 const SHALLOW_INNER = LAND_RADIUS;
-const SHALLOW_OUTER = 17;
+const SHALLOW_OUTER = 20;
 
 // Wave force state — continuous sinusoidal push
 let waveForceDir = new THREE.Vector3(1, 0, 0.5).normalize(); // wave propagation direction
