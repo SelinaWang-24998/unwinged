@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from './lib/three.module.js';
 
 const GRID_SIZE = 44;
 const TILE_SIZE = 1;

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from './lib/three.module.js';
 import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer } from './scene.js';
 import { createIsland } from './island.js';
 import { createOcean, updateOcean } from './ocean.js';

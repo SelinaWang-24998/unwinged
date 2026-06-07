@@ -13,7 +13,7 @@ const TILE = getTileSize();
 let mode = "terrain"; // 'pursuer' | 'terrain'
 let lastTilt = { beta: 0, gamma: 0 };
 let tiltTimer = 0;
-const TILT_THRESHOLD = 20; // degrees
+const TILT_THRESHOLD = 8; // degrees
 const TILT_HOLD_TIME = 1.5; // seconds for terrain mode
 const PULSE_COOLDOWN = 1.0; // seconds between pursuer nudges
 let pulseCooldown = 0;
@@ -25,15 +25,24 @@ let pcSimActive = false;
 let pcSimMode = null;
 
 function updateDebug() {
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
-  set('db-perm', permissionState);
-  set('db-evt', gyroEventCount);
-  set('db-beta', (lastTilt.beta ?? 0).toFixed(1));
-  set('db-gamma', (lastTilt.gamma ?? 0).toFixed(1));
-  set('db-alpha', '-');
-  set('db-tilt', Math.max(Math.abs(lastTilt.beta || 0), Math.abs(lastTilt.gamma || 0)).toFixed(1));
-  set('db-mode', mode);
-  set('db-cd', pulseCooldown.toFixed(2));
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(v);
+  };
+  set("db-perm", permissionState);
+  set("db-evt", gyroEventCount);
+  set("db-beta", (lastTilt.beta ?? 0).toFixed(1));
+  set("db-gamma", (lastTilt.gamma ?? 0).toFixed(1));
+  set("db-alpha", "-");
+  set(
+    "db-tilt",
+    Math.max(
+      Math.abs(lastTilt.beta || 0),
+      Math.abs(lastTilt.gamma || 0),
+    ).toFixed(1),
+  );
+  set("db-mode", mode);
+  set("db-cd", pulseCooldown.toFixed(2));
 }
 
 export async function requestGyroPermission() {
@@ -150,7 +159,10 @@ export function pcGyroPulse(direction) {
   } else {
     const pos = getPlayerGridPos();
     if (isLand(pos.x, pos.z)) {
-      const dir = direction.x !== 0 ? Math.sign(direction.x) : Math.sign(direction.z || 0);
+      const dir =
+        direction.x !== 0
+          ? Math.sign(direction.x)
+          : Math.sign(direction.z || 0);
       deformTerrain(pos.x, pos.z, dir * intensity * 0.3, 2);
       playTerrainDeform();
     } else {

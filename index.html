@@ -107,26 +107,52 @@
   </div>
 </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-  }
-}
-</script>
-<!-- Gyro Debug Panel -->
-<div id="gyro-debug" style="position:fixed;top:10px;left:10px;z-index:200;background:rgba(0,0,0,0.82);color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:6px;line-height:1.6;max-width:220px;pointer-events:none;">
-  <div>gyro-debug</div>
-  <div>perm: <span id="db-perm">-</span></div>
-  <div>events: <span id="db-evt">0</span></div>
-  <div>beta: <span id="db-beta">-</span></div>
-  <div>gamma: <span id="db-gamma">-</span></div>
-  <div>alpha: <span id="db-alpha">-</span></div>
-  <div>maxTilt: <span id="db-tilt">0</span></div>
-  <div>mode: <span id="db-mode">terrain</span></div>
-  <div>cooldown: <span id="db-cd">0</span></div>
-</div>
+  <!-- Gyro Debug Panel (safe to remove in production) -->
+  <div id="gyro-debug" style="position:fixed;top:10px;left:10px;z-index:200;background:rgba(0,0,0,0.82);color:#0f0;font-family:monospace;font-size:11px;padding:10px;border-radius:6px;line-height:1.6;max-width:220px;pointer-events:none;">
+    <div>gyro-debug</div>
+    <div>perm: <span id="db-perm">-</span></div>
+    <div>events: <span id="db-evt">0</span></div>
+    <div>beta: <span id="db-beta">-</span></div>
+    <div>gamma: <span id="db-gamma">-</span></div>
+    <div>alpha: <span id="db-alpha">-</span></div>
+    <div>maxTilt: <span id="db-tilt">0</span></div>
+    <div>mode: <span id="db-mode">terrain</span></div>
+    <div>cooldown: <span id="db-cd">0</span></div>
+  </div>
 
-<script type="module" src="js/main.js"></script>
+  <script>
+    (function () {
+      function showBootError(err) {
+        try {
+          var msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+          var el = document.createElement('div');
+          el.style.cssText = [
+            'position:fixed',
+            'top:0',
+            'left:0',
+            'right:0',
+            'bottom:0',
+            'z-index:99999',
+            'background:#0a0a1e',
+            'color:#ffdddd',
+            'padding:16px',
+            'font-family:monospace',
+            'white-space:pre-wrap',
+            'overflow:auto',
+            'box-sizing:border-box'
+          ].join(';');
+          el.textContent = '启动失败（可能是不支持 ES Module 或资源被拦截）：\n\n' + msg;
+          document.body.appendChild(el);
+        } catch (e) {}
+      }
+
+      try {
+        // Dynamic import works in modern WebViews; if module scripts are blocked, this gives us a chance to surface a readable error.
+        import('./js/main.js').catch(showBootError);
+      } catch (e) {
+        showBootError(e);
+      }
+    })();
+  </script>
 </body>
 </html>

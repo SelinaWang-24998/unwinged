@@ -1,5 +1,5 @@
 // Particle effects system
-import * as THREE from 'three';
+import * as THREE from './lib/three.module.js';
 import { getScene } from './scene.js';
 
 let particleGroups = {

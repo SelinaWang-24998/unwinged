@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from './lib/three.module.js';
 import { getScene, getTileSize, getGridSize } from "./scene.js";
 import { getPlayerPosition } from "./player.js";
 import { isLand, getCoverHeight, getTerrainHeight } from "./island.js";
