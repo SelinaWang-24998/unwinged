@@ -1,8 +1,8 @@
 // Gyroscope system - dual mode
 import { gyroControlPursuer } from "./pursuer.js";
-import { deformTerrain } from "./terrain.js";
+import { deformTerrain, tiltTerrainDirectional } from "./terrain.js";
 import { createWave } from "./ocean.js";
-import { isLand, getTerrainHeight } from "./island.js";
+import { isLand } from "./island.js";
 import { getPlayerGridPos } from "./player.js";
 import { getTileSize, getCamera } from "./scene.js";
 import { triggerJournal, hasTriggered } from "./journal.js";
@@ -172,15 +172,51 @@ export function updateGyro(delta) {
     if (maxTilt > TILT_THRESHOLD) {
       const pos = getPlayerGridPos();
       if (isLand(pos.x, pos.z)) {
-        // On land: modify terrain Z-axis
         if (!hasTriggered("gyro_terrain")) {
           triggerJournal("gyro_terrain");
         }
-        const dir = lastTilt.gamma > 0 ? 1 : -1;
         if (tiltTimer <= 0) {
-          deformTerrain(pos.x, pos.z, dir * intensity * 0.3, 2);
+          const rawX = (lastTilt.gamma || 0) / 90;
+          const rawZ = ((lastTilt.beta ?? 0) - 45) / 45;
+
+          const a = -getScreenAngleRad();
+          const cosA = Math.cos(a);
+          const sinA = Math.sin(a);
+          const tiltX = rawX * cosA - rawZ * sinA;
+          const tiltZ = rawX * sinA + rawZ * cosA;
+
+          const camera = getCamera?.();
+          let wx = tiltX;
+          let wz = tiltZ;
+          if (camera) {
+            const e = camera.matrixWorld.elements;
+            const rx = e[0];
+            const rz = e[2];
+            let fx = -e[8];
+            let fz = -e[10];
+            const fl = Math.hypot(fx, fz);
+            if (fl > 1e-8) {
+              fx /= fl;
+              fz /= fl;
+            } else {
+              fx = 0;
+              fz = 1;
+            }
+            const rl = Math.hypot(rx, rz);
+            const rnx = rl > 1e-8 ? rx / rl : 1;
+            const rnz = rl > 1e-8 ? rz / rl : 0;
+            wx = rnx * tiltX + fx * tiltZ;
+            wz = rnz * tiltX + fz * tiltZ;
+          }
+          const wl = Math.hypot(wx, wz);
+          if (wl > 1e-8) {
+            wx /= wl;
+            wz /= wl;
+          }
+
+          tiltTerrainDirectional(pos.x, pos.z, wx, wz, intensity, 3, 1.1, true);
           playTerrainDeform();
-          tiltTimer = 0.3;
+          tiltTimer = 0.25;
         }
       } else {
         // On sea: create waves
@@ -188,9 +224,45 @@ export function updateGyro(delta) {
           triggerJournal("gyro_wave");
           playWave();
         }
-        const dirX = (lastTilt.gamma || 0) / 90;
-        const dirZ = (lastTilt.beta - 45 || 0) / 45;
-        createWave({ x: dirX, z: dirZ }, intensity);
+        const rawX = (lastTilt.gamma || 0) / 90;
+        const rawZ = ((lastTilt.beta ?? 0) - 45) / 45;
+
+        const a = -getScreenAngleRad();
+        const cosA = Math.cos(a);
+        const sinA = Math.sin(a);
+        const tiltX = rawX * cosA - rawZ * sinA;
+        const tiltZ = rawX * sinA + rawZ * cosA;
+
+        const camera = getCamera?.();
+        let wx = tiltX;
+        let wz = tiltZ;
+        if (camera) {
+          const e = camera.matrixWorld.elements;
+          const rx = e[0];
+          const rz = e[2];
+          let fx = -e[8];
+          let fz = -e[10];
+          const fl = Math.hypot(fx, fz);
+          if (fl > 1e-8) {
+            fx /= fl;
+            fz /= fl;
+          } else {
+            fx = 0;
+            fz = 1;
+          }
+          const rl = Math.hypot(rx, rz);
+          const rnx = rl > 1e-8 ? rx / rl : 1;
+          const rnz = rl > 1e-8 ? rz / rl : 0;
+          wx = rnx * tiltX + fx * tiltZ;
+          wz = rnz * tiltX + fz * tiltZ;
+        }
+        const wl = Math.hypot(wx, wz);
+        if (wl > 1e-8) {
+          wx /= wl;
+          wz /= wl;
+        }
+
+        createWave({ x: wx, z: wz }, intensity);
       }
     }
   }
