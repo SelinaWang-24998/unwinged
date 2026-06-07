@@ -1,10 +1,11 @@
 // Gyroscope system - dual mode
+import * as THREE from "three";
 import { gyroControlPursuer } from "./pursuer.js";
 import { deformTerrain } from "./terrain.js";
 import { createWave } from "./ocean.js";
 import { isLand, getTerrainHeight } from "./island.js";
 import { getPlayerGridPos } from "./player.js";
-import { getTileSize } from "./scene.js";
+import { getTileSize, getCamera } from "./scene.js";
 import { triggerJournal, hasTriggered } from "./journal.js";
 import { playTerrainDeform, playWave } from "./audio.js";
 
@@ -43,6 +44,16 @@ function updateDebug() {
   );
   set("db-mode", mode);
   set("db-cd", pulseCooldown.toFixed(2));
+}
+
+function getScreenAngleRad() {
+  const angleDeg =
+    (screen.orientation && typeof screen.orientation.angle === "number"
+      ? screen.orientation.angle
+      : typeof window.orientation === "number"
+        ? window.orientation
+        : 0) || 0;
+  return (angleDeg * Math.PI) / 180;
 }
 
 export async function requestGyroPermission() {
@@ -117,9 +128,35 @@ export function updateGyro(delta) {
       if (!hasTriggered("gyro_pursuer")) {
         triggerJournal("gyro_pursuer");
       }
-      const dirX = (lastTilt.gamma || 0) / 90; // -1 to 1
-      const dirZ = (lastTilt.beta - 45 || 0) / 45; // -1 to 1 (beta 0=flat, 90=vertical)
-      gyroControlPursuer(dirX, dirZ, intensity);
+      const rawX = (lastTilt.gamma || 0) / 90;
+      const rawZ = ((lastTilt.beta ?? 0) - 45) / 45;
+
+      const a = -getScreenAngleRad();
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+      const tiltX = rawX * cosA - rawZ * sinA;
+      const tiltZ = rawX * sinA + rawZ * cosA;
+
+      const camera = getCamera?.();
+      if (!camera) {
+        gyroControlPursuer(tiltX, tiltZ, intensity);
+      } else {
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        if (forward.lengthSq() < 1e-8) {
+          gyroControlPursuer(tiltX, tiltZ, intensity);
+        } else {
+          forward.normalize();
+          const up = new THREE.Vector3(0, 1, 0);
+          const right = new THREE.Vector3().crossVectors(forward, up).normalize();
+          const worldDir = new THREE.Vector3()
+            .addScaledVector(right, tiltX)
+            .addScaledVector(forward, tiltZ);
+          if (worldDir.lengthSq() > 1e-8) worldDir.normalize();
+          gyroControlPursuer(worldDir.x, worldDir.z, intensity);
+        }
+      }
       pulseCooldown = PULSE_COOLDOWN;
     }
   } else {
