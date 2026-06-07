@@ -4,7 +4,7 @@ import { deformTerrain } from "./terrain.js";
 import { createWave } from "./ocean.js";
 import { isLand, getTerrainHeight } from "./island.js";
 import { getPlayerGridPos } from "./player.js";
-import { getTileSize } from "./scene.js";
+import { getTileSize, getCamera } from "./scene.js";
 import { triggerJournal, hasTriggered } from "./journal.js";
 import { playTerrainDeform, playWave } from "./audio.js";
 
@@ -43,6 +43,16 @@ function updateDebug() {
   );
   set("db-mode", mode);
   set("db-cd", pulseCooldown.toFixed(2));
+}
+
+function getScreenAngleRad() {
+  const angleDeg =
+    (screen.orientation && typeof screen.orientation.angle === "number"
+      ? screen.orientation.angle
+      : typeof window.orientation === "number"
+        ? window.orientation
+        : 0) || 0;
+  return (angleDeg * Math.PI) / 180;
 }
 
 export async function requestGyroPermission() {
@@ -117,9 +127,44 @@ export function updateGyro(delta) {
       if (!hasTriggered("gyro_pursuer")) {
         triggerJournal("gyro_pursuer");
       }
-      const dirX = (lastTilt.gamma || 0) / 90; // -1 to 1
-      const dirZ = (lastTilt.beta - 45 || 0) / 45; // -1 to 1 (beta 0=flat, 90=vertical)
-      gyroControlPursuer(dirX, dirZ, intensity);
+      const rawX = (lastTilt.gamma || 0) / 90;
+      const rawZ = ((lastTilt.beta ?? 0) - 45) / 45;
+
+      const a = -getScreenAngleRad();
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+      const tiltX = rawX * cosA - rawZ * sinA;
+      const tiltZ = rawX * sinA + rawZ * cosA;
+
+      const camera = getCamera?.();
+      if (!camera) {
+        gyroControlPursuer(tiltX, tiltZ, intensity);
+      } else {
+        const e = camera.matrixWorld.elements;
+        const rx = e[0];
+        const rz = e[2];
+        let fx = -e[8];
+        let fz = -e[10];
+        const fl = Math.hypot(fx, fz);
+        if (fl > 1e-8) {
+          fx /= fl;
+          fz /= fl;
+        } else {
+          fx = 0;
+          fz = 1;
+        }
+        const rl = Math.hypot(rx, rz);
+        const rnx = rl > 1e-8 ? rx / rl : 1;
+        const rnz = rl > 1e-8 ? rz / rl : 0;
+        let wx = rnx * tiltX + fx * tiltZ;
+        let wz = rnz * tiltX + fz * tiltZ;
+        const wl = Math.hypot(wx, wz);
+        if (wl > 1e-8) {
+          wx /= wl;
+          wz /= wl;
+        }
+        gyroControlPursuer(wx, wz, intensity);
+      }
       pulseCooldown = PULSE_COOLDOWN;
     }
   } else {
