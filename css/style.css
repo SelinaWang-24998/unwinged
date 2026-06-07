@@ -242,3 +242,44 @@ body.portrait-lock #fullscreen-prompt { display:none; }
   cursor:pointer; letter-spacing:1px;
 }
 #fullscreen-prompt button:active { background:rgba(255,255,255,0.2); }
+
+/* === Keyboard Visualizer === */
+#keyboard-viz {
+  position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
+  z-index:150; pointer-events:none;
+}
+.kb-row { display:flex; gap:6px; align-items:center; }
+.kb-cluster { display:flex; }
+.kb-wasd {
+  display:grid;
+  grid-template:
+    ". w ." auto
+    "a s d" auto
+    / 1fr 1fr 1fr;
+  gap:2px;
+}
+.kb-arrows {
+  display:grid;
+  grid-template:
+    ". u ." auto
+    "l d2 r" auto
+    / 1fr 1fr 1fr;
+  gap:2px;
+}
+.kb-key {
+  display:flex; align-items:center; justify-content:center;
+  min-width:22px; height:22px; padding:0 6px;
+  background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.3);
+  border:1px solid rgba(255,255,255,0.12); border-radius:4px;
+  font-family:monospace; font-size:11px; transition:all 0.08s;
+}
+.kb-key.active {
+  background:rgba(255,215,0,0.35); color:#ffd700;
+  border-color:rgba(255,215,0,0.5); box-shadow:0 0 6px rgba(255,215,0,0.2);
+}
+.kb-sep { width:8px; }
+.kb-gyro {
+  color:rgba(255,255,255,0.5); font-family:monospace; font-size:11px;
+  white-space:nowrap;
+}
+.kb-gyro b { color:#ffd700; font-weight:normal; }

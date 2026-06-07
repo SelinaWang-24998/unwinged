@@ -29,6 +29,7 @@ function updateDebug() {
     const el = document.getElementById(id);
     if (el) el.textContent = String(v);
   };
+  // Debug panel
   set("db-perm", permissionState);
   set("db-evt", gyroEventCount);
   set("db-beta", (lastTilt.beta ?? 0).toFixed(1));
@@ -43,6 +44,11 @@ function updateDebug() {
   );
   set("db-mode", mode);
   set("db-cd", pulseCooldown.toFixed(2));
+  // Keyboard viz gyro params
+  set("kb-beta", (lastTilt.beta ?? 0).toFixed(1) + "°");
+  set("kb-gamma", (lastTilt.gamma ?? 0).toFixed(1) + "°");
+  set("kb-tilt", Math.max(Math.abs(lastTilt.beta || 0), Math.abs(lastTilt.gamma || 0)).toFixed(0) + "°");
+  set("kb-mode", mode === "pursuer" ? "追捕者" : "地形");
 }
 
 function getScreenAngleRad() {
@@ -199,6 +205,10 @@ export function updateGyro(delta) {
 // PC keyboard simulation
 export function pcGyroPulse(direction) {
   const intensity = 0.7;
+  // Simulate tilt values so they show in the keyboard viz
+  lastTilt.beta = (direction.z || 0) * 45 + 45;
+  lastTilt.gamma = (direction.x || 0) * 45;
+  updateDebug();
   if (mode === "pursuer") {
     gyroControlPursuer(direction.x || 0, direction.z || 0, intensity);
   } else {
@@ -214,6 +224,14 @@ export function pcGyroPulse(direction) {
       createWave(direction, intensity);
     }
   }
+}
+
+export function resetGyro() {
+  lastTilt = { beta: 0, gamma: 0 };
+  tiltTimer = 0;
+  pulseCooldown = 0;
+  gyroEventCount = 0;
+  updateDebug();
 }
 
 export function toggleGyroMode() {

@@ -448,8 +448,19 @@ export function initUI() {
     startCountdown();
   });
 
+  // Keyboard visualizer helper
+  function updateKeyViz(code, pressed) {
+    const el = document.querySelector(`#keyboard-viz [data-key="${code}"]`);
+    if (el) el.classList.toggle('active', pressed);
+    if (code === 'ControlLeft' || code === 'ControlRight') {
+      const ctrl = document.querySelector('#keyboard-viz .mod-key');
+      if (ctrl) ctrl.classList.toggle('active', pressed);
+    }
+  }
+
   // Keyboard input
   document.addEventListener("keydown", (e) => {
+    updateKeyViz(e.code, true);
     if (e.code === "KeyQ") {
       const mode = toggleGyroMode();
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
@@ -489,6 +500,7 @@ export function initUI() {
   });
 
   document.addEventListener("keyup", (e) => {
+    updateKeyViz(e.code, false);
     setKey(e.code, false);
   });
 
