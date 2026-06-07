@@ -9,6 +9,31 @@ let gridGroup;
 const gridColor = 0x4488cc;
 const gridBgColor = 0x1a3060;
 
+function disposeMaterial(mat) {
+  if (!mat) return;
+  const mats = Array.isArray(mat) ? mat : [mat];
+  mats.forEach((m) => {
+    if (!m) return;
+    Object.keys(m).forEach((k) => {
+      const v = m[k];
+      if (v && v.isTexture) v.dispose();
+    });
+    if (typeof m.dispose === "function") m.dispose();
+  });
+}
+
+export function disposeObject3D(obj) {
+  if (!obj) return;
+  obj.traverse((n) => {
+    if (n.geometry && typeof n.geometry.dispose === "function") {
+      n.geometry.dispose();
+    }
+    if (n.material) {
+      disposeMaterial(n.material);
+    }
+  });
+}
+
 export function initScene(container) {
   // Dispose old renderer to free WebGL context (critical on mobile)
   if (renderer) {
@@ -146,7 +171,10 @@ export function resetSceneForGame() {
   scene.children.forEach(child => {
     if (!keep.has(child)) toRemove.push(child);
   });
-  toRemove.forEach(child => scene.remove(child));
+  toRemove.forEach(child => {
+    scene.remove(child);
+    disposeObject3D(child);
+  });
 
   // Reset scene background & fog (may have been altered)
   scene.background = new THREE.Color(0x87CEEB);

@@ -1,5 +1,5 @@
 import * as THREE from './lib/three.module.js';
-import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer } from './scene.js';
+import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer, disposeObject3D } from './scene.js';
 import { createIsland } from './island.js';
 import { createOcean, updateOcean } from './ocean.js';
 import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
@@ -159,10 +159,16 @@ function cleanupScene() {
   const scene = getScene();
   ['player', 'pursuer', 'island', 'foliage', 'fragments', 'ripples', 'shallowWater', 'shallowFlow', 'deepFlow'].forEach(name => {
     const obj = scene.getObjectByName(name);
-    if (obj) scene.remove(obj);
+    if (obj) {
+      scene.remove(obj);
+      disposeObject3D(obj);
+    }
   });
   const ocean = scene.getObjectByName('ocean');
-  if (ocean) scene.remove(ocean);
+  if (ocean) {
+    scene.remove(ocean);
+    disposeObject3D(ocean);
+  }
 }
 
 // Build a fresh game world
