@@ -29,21 +29,6 @@ function updateDebug() {
     const el = document.getElementById(id);
     if (el) el.textContent = String(v);
   };
-  // Debug panel
-  set("db-perm", permissionState);
-  set("db-evt", gyroEventCount);
-  set("db-beta", (lastTilt.beta ?? 0).toFixed(1));
-  set("db-gamma", (lastTilt.gamma ?? 0).toFixed(1));
-  set("db-alpha", "-");
-  set(
-    "db-tilt",
-    Math.max(
-      Math.abs(lastTilt.beta || 0),
-      Math.abs(lastTilt.gamma || 0),
-    ).toFixed(1),
-  );
-  set("db-mode", mode);
-  set("db-cd", pulseCooldown.toFixed(2));
   // Keyboard viz gyro params
   set("kb-beta", (lastTilt.beta ?? 0).toFixed(1) + "°");
   set("kb-gamma", (lastTilt.gamma ?? 0).toFixed(1) + "°");
