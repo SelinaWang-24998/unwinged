@@ -80,7 +80,7 @@ export function createIsland() {
           color = cliffColors[Math.floor(hash2D(gx + 50, gz + 60) * cliffColors.length)];
         }
 
-        const mat = new THREE.MeshToonMaterial({ color });
+        const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.0 });
         const geo = new THREE.BoxGeometry(TILE * 0.95, TILE * 0.6, TILE * 0.95);
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(gx * TILE, y * 0.6, gz * TILE);
@@ -102,13 +102,13 @@ function createFoliage(scene) {
   const group = new THREE.Group();
   group.name = 'foliage';
 
-  const trunkMat = new THREE.MeshToonMaterial({ color: 0x8b6a3e });
-  const leafMatA = new THREE.MeshToonMaterial({ color: 0x4ea84a });
-  const leafMatB = new THREE.MeshToonMaterial({ color: 0x6db840 });
-  const grassMat = new THREE.MeshToonMaterial({ color: 0x78c85a });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b6a3e, roughness: 0.9 });
+  const leafMatA = new THREE.MeshStandardMaterial({ color: 0x4ea84a, roughness: 0.85, flatShading: true });
+  const leafMatB = new THREE.MeshStandardMaterial({ color: 0x6db840, roughness: 0.85, flatShading: true });
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x78c85a, roughness: 0.9, flatShading: true });
 
-  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6);
-  const leafGeo = new THREE.DodecahedronGeometry(0.45, 0);
+  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.95, 6);
+  const leafGeo = new THREE.ConeGeometry(0.45, 0.8, 6);
   const bushGeo = new THREE.DodecahedronGeometry(0.22, 0);
   const grassGeo = new THREE.ConeGeometry(0.08, 0.22, 5, 1);
 
@@ -138,11 +138,17 @@ function createFoliage(scene) {
         trunk.position.y = 0.48;
         tree.add(trunk);
 
-        const leaf = new THREE.Mesh(leafGeo, r2 < 0.5 ? leafMatA : leafMatB);
-        leaf.position.y = 1.06;
-        leaf.scale.setScalar(1.15 + r2 * 0.55);
-        leaf.rotation.set(r2 * 0.6, r2 * 2.0, r2 * 0.6);
-        tree.add(leaf);
+        // Double cone stack — DuangDuang tree
+        const leafMat = r2 < 0.5 ? leafMatA : leafMatB;
+        const s = 1.15 + r2 * 0.55;
+        const leaf1 = new THREE.Mesh(leafGeo, leafMat);
+        leaf1.position.y = 0.9;
+        leaf1.scale.set(s * 1.1, s * 0.85, s * 1.1);
+        tree.add(leaf1);
+        const leaf2 = new THREE.Mesh(leafGeo, leafMat);
+        leaf2.position.y = 1.25;
+        leaf2.scale.set(s * 0.7, s * 0.7, s * 0.7);
+        tree.add(leaf2);
 
         tree.position.set(gx * TILE, y + 0.02, gz * TILE);
         tree.rotation.y = r2 * Math.PI * 2;
@@ -182,17 +188,34 @@ function createFoliage(scene) {
     const hero = new THREE.Group();
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = 0.55 * heroScale;
-    trunk.scale.setScalar(heroScale);
+    trunk.scale.set(heroScale, heroScale * 1.3, heroScale);
     hero.add(trunk);
 
-    const leaf = new THREE.Mesh(leafGeo, r2 < 0.5 ? leafMatA : leafMatB);
-    leaf.position.y = 1.25 * heroScale;
-    leaf.scale.setScalar(heroScale * (1.25 + r2 * 0.25));
-    leaf.rotation.set(r2 * 0.6, r2 * 2.0, r2 * 0.6);
-    hero.add(leaf);
+    // 3-tier cone stacking — DuangDuang Christmas tree style
+    const leafMat = r2 < 0.5 ? leafMatA : leafMatB;
+    const coneScaleBase = heroScale * (1.25 + r2 * 0.25);
+    // Bottom cone
+    const cone1 = new THREE.Mesh(leafGeo, leafMat);
+    cone1.position.y = 0.95 * heroScale;
+    cone1.scale.set(coneScaleBase * 1.2, coneScaleBase * 0.9, coneScaleBase * 1.2);
+    hero.add(cone1);
+    // Middle cone
+    const cone2 = new THREE.Mesh(leafGeo, leafMat);
+    cone2.position.y = 1.35 * heroScale;
+    cone2.scale.set(coneScaleBase * 0.9, coneScaleBase * 0.85, coneScaleBase * 0.9);
+    hero.add(cone2);
+    // Top cone
+    const cone3 = new THREE.Mesh(leafGeo, leafMat);
+    cone3.position.y = 1.7 * heroScale;
+    cone3.scale.set(coneScaleBase * 0.6, coneScaleBase * 0.7, coneScaleBase * 0.6);
+    hero.add(cone3);
 
     hero.position.set(c.gx * TILE, c.y + 0.02, c.gz * TILE);
     hero.rotation.y = r2 * Math.PI * 2;
+    // Mark hero trees as solid obstacles
+    hero.userData.isSolid = true;
+    hero.userData.collisionRadius = 0.6 * heroScale;
+    hero.userData.collisionCenter = new THREE.Vector3(c.gx * TILE, 0, c.gz * TILE);
     group.add(hero);
     foliageCover.set(`${c.gx},${c.gz}`, Math.max(foliageCover.get(`${c.gx},${c.gz}`) || 0, c.y + 2.35 * heroScale));
   }
@@ -265,7 +288,7 @@ export function placeBlock(gx, gz) {
   // Create new block
   const newY = highestY + 0.3;
   const color = 0x8ed860; // grass color
-  const mat = new THREE.MeshToonMaterial({ color });
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.0 });
   const geo = new THREE.BoxGeometry(TILE * 0.95, TILE * 0.6, TILE * 0.95);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(gx * TILE, newY, gz * TILE);

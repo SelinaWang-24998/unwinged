@@ -1,16 +1,65 @@
-import * as THREE from './lib/three.module.js';
-import { initScene, resetSceneForGame, render, getScene, getCamera, getRenderer, disposeObject3D } from './scene.js';
-import { createIsland, newGameSeed } from './island.js';
-import { createOcean, updateOcean } from './ocean.js';
-import { createPlayer, updatePlayer, resetPlayer, getPlayerPosition } from './player.js';
-import { createPursuer, updatePursuer, resetPursuer } from './pursuer.js';
-import { createFragments, updateFragments, checkFragmentCollection, resetFragments, onFragmentCollected, getTotalFragments } from './fragments.js';
-import { initGyro, updateGyro, resetGyro } from './gyro.js';
-import { initJournal, triggerJournal, resetJournal } from './journal.js';
-import { initUI, updateUI, endGame, resetUI, onRestart, onStart, isGameRunning, isGameOver, refreshScoreDisplay, isPaused } from './ui.js';
-import { updateParticles, clearAllParticles, spawnCollectParticles, spawnSplashParticles, spawnDustParticles } from './particles.js';
-import { updateRipples } from './particles.js';
-import { playCollect, playSplash, playAlert, playVictory, playGameOver, initAudioOnInteraction } from './audio.js';
+import * as THREE from "./lib/three.module.js";
+import {
+  initScene,
+  resetSceneForGame,
+  render,
+  getScene,
+  getCamera,
+  getRenderer,
+  disposeObject3D,
+} from "./scene.js";
+import { createIsland, newGameSeed } from "./island.js";
+import { createOcean, updateOcean } from "./ocean.js";
+import {
+  createPlayer,
+  updatePlayer,
+  resetPlayer,
+  getPlayerPosition,
+} from "./player.js";
+import { createPursuer, updatePursuer, resetPursuer } from "./pursuer.js";
+import {
+  createFragments,
+  updateFragments,
+  checkFragmentCollection,
+  resetFragments,
+  onFragmentCollected,
+  getTotalFragments,
+  cleanupHiddenSignals,
+  activateHiddenSignals,
+} from "./fragments.js";
+import { initGyro, updateGyro, resetGyro } from "./gyro.js";
+import { initJournal, triggerJournal, resetJournal } from "./journal.js";
+import { initVoice, triggerVoice, updateVoice, resetVoice, isVoiceShowing, dismissVoicePopupForJournal } from "./voice.js";
+import {
+  initUI,
+  updateUI,
+  endGame,
+  resetUI,
+  onRestart,
+  onStart,
+  isGameRunning,
+  isGameOver,
+  refreshScoreDisplay,
+  isPaused,
+} from "./ui.js";
+import {
+  updateParticles,
+  clearAllParticles,
+  spawnCollectParticles,
+  spawnSplashParticles,
+  spawnDustParticles,
+} from "./particles.js";
+import { updateRipples } from "./particles.js";
+import {
+  playCollect,
+  playSplash,
+  playAlert,
+  playVictory,
+  playGameOver,
+  initAudioOnInteraction,
+} from "./audio.js";
+import { updateHintSystem, dismissHUDHint } from "./hint-system.js";
+import { initFoliageTracking } from "./terrain.js";
 
 let clock;
 let gameLoopId = null;
@@ -24,7 +73,9 @@ let targetZoom = 1;
 const ZOOM_MIN = 0.55;
 const ZOOM_MAX = 2.1;
 
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
 
 function attachCameraControls() {
   if (cameraControlsCleanup) cameraControlsCleanup();
@@ -32,8 +83,8 @@ function attachCameraControls() {
   const renderer = getRenderer();
   if (!renderer) return;
   const canvas = renderer.domElement;
-  canvas.style.touchAction = 'none';
-  canvas.style.cursor = 'grab';
+  canvas.style.touchAction = "none";
+  canvas.style.cursor = "grab";
 
   const camera = getCamera();
   if (camera) targetZoom = clamp(camera.zoom || 1, ZOOM_MIN, ZOOM_MAX);
@@ -47,16 +98,18 @@ function attachCameraControls() {
 
   const onDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
-    const id = e.pointerId ?? 'mouse';
+    const id = e.pointerId ?? "mouse";
     pointers.set(id, { x: e.clientX, y: e.clientY });
-    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (err) {}
 
     if (pointers.size === 1) {
       active = true;
       pointerId = id;
       lastX = e.clientX;
       lastY = e.clientY;
-      canvas.style.cursor = 'grabbing';
+      canvas.style.cursor = "grabbing";
       lastPinchDist = null;
     } else if (pointers.size === 2) {
       active = false;
@@ -65,12 +118,12 @@ function attachCameraControls() {
       const dx = pts[0].x - pts[1].x;
       const dy = pts[0].y - pts[1].y;
       lastPinchDist = Math.sqrt(dx * dx + dy * dy);
-      canvas.style.cursor = 'grabbing';
+      canvas.style.cursor = "grabbing";
     }
   };
 
   const onMove = (e) => {
-    const id = e.pointerId ?? 'mouse';
+    const id = e.pointerId ?? "mouse";
     if (!pointers.has(id)) return;
     pointers.set(id, { x: e.clientX, y: e.clientY });
 
@@ -100,15 +153,17 @@ function attachCameraControls() {
   };
 
   const onUp = (e) => {
-    const id = e.pointerId ?? 'mouse';
+    const id = e.pointerId ?? "mouse";
     pointers.delete(id);
-    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+    try {
+      canvas.releasePointerCapture(e.pointerId);
+    } catch (err) {}
 
     if (pointers.size === 0) {
       active = false;
       pointerId = null;
       lastPinchDist = null;
-      canvas.style.cursor = 'grab';
+      canvas.style.cursor = "grab";
       return;
     }
 
@@ -136,35 +191,50 @@ function attachCameraControls() {
   const onWheel = (e) => {
     e.preventDefault();
     const delta = e.deltaY;
-    targetZoom = clamp(targetZoom * Math.exp(-delta * 0.001), ZOOM_MIN, ZOOM_MAX);
+    targetZoom = clamp(
+      targetZoom * Math.exp(-delta * 0.001),
+      ZOOM_MIN,
+      ZOOM_MAX,
+    );
   };
 
-  canvas.addEventListener('pointerdown', onDown);
-  canvas.addEventListener('pointermove', onMove);
-  canvas.addEventListener('pointerup', onUp);
-  canvas.addEventListener('pointercancel', onUp);
-  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onMove);
+  canvas.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
 
   cameraControlsCleanup = () => {
-    canvas.removeEventListener('pointerdown', onDown);
-    canvas.removeEventListener('pointermove', onMove);
-    canvas.removeEventListener('pointerup', onUp);
-    canvas.removeEventListener('pointercancel', onUp);
-    canvas.removeEventListener('wheel', onWheel);
+    canvas.removeEventListener("pointerdown", onDown);
+    canvas.removeEventListener("pointermove", onMove);
+    canvas.removeEventListener("pointerup", onUp);
+    canvas.removeEventListener("pointercancel", onUp);
+    canvas.removeEventListener("wheel", onWheel);
   };
 }
 
 // Clean up old scene objects (DO NOT remove canvas — we reuse the renderer)
 function cleanupScene() {
+  cleanupHiddenSignals(); // Reset terrain block emissive & remove signal circles
   const scene = getScene();
-  ['player', 'pursuer', 'island', 'foliage', 'fragments', 'ripples', 'shallowWater', 'shallowFlow', 'deepFlow'].forEach(name => {
+  [
+    "player",
+    "pursuer",
+    "island",
+    "foliage",
+    "fragments",
+    "ripples",
+    "shallowWater",
+    "shallowFlow",
+    "deepFlow",
+  ].forEach((name) => {
     const obj = scene.getObjectByName(name);
     if (obj) {
       scene.remove(obj);
       disposeObject3D(obj);
     }
   });
-  const ocean = scene.getObjectByName('ocean');
+  const ocean = scene.getObjectByName("ocean");
   if (ocean) {
     scene.remove(ocean);
     disposeObject3D(ocean);
@@ -174,6 +244,7 @@ function cleanupScene() {
 // Build a fresh game world
 function buildWorld() {
   createIsland();
+  initFoliageTracking(); // Track foliage positions for terrain sync
   createOcean();
   createFragments();
 }
@@ -195,6 +266,8 @@ function startGameLoop() {
     updateFragments(delta);
     updateOcean(delta);
     updateGyro(delta);
+    updateVoice();
+    updateHintSystem(delta);
     checkFragmentCollection();
     updateUI(delta);
     updateParticles(delta);
@@ -209,8 +282,16 @@ function startGameLoop() {
         camera.updateProjectionMatrix();
       }
     }
-    camOffset.set(Math.sin(camYaw) * camRadius, camHeight, Math.cos(camYaw) * camRadius);
-    cameraTargetPos.set(pos.x + camOffset.x, pos.y + camOffset.y, pos.z + camOffset.z);
+    camOffset.set(
+      Math.sin(camYaw) * camRadius,
+      camHeight,
+      Math.cos(camYaw) * camRadius,
+    );
+    cameraTargetPos.set(
+      pos.x + camOffset.x,
+      pos.y + camOffset.y,
+      pos.z + camOffset.z,
+    );
     camera.position.lerp(cameraTargetPos, 0.05);
     camera.lookAt(pos.x, pos.y, pos.z);
 
@@ -235,62 +316,79 @@ function startBgLoop() {
 // === Mobile Error Overlay ===
 // Shows JS errors directly on screen so mobile users can see what went wrong
 function initErrorOverlay() {
-  const el = document.createElement('div');
-  el.id = 'error-overlay';
+  const el = document.createElement("div");
+  el.id = "error-overlay";
   el.style.cssText = [
-    'position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999',
-    'background:rgba(180,10,10,0.92);color:#fff;display:none',
-    'flex-direction:column;align-items:flex-start;justify-content:flex-start',
-    'padding:24px 20px;font-family:monospace;font-size:13px;line-height:1.7',
-    'white-space:pre-wrap;word-break:break-all;overflow-y:auto;overflow-x:hidden',
-    'text-align:left;box-sizing:border-box',
-  ].join(';');
-  const title = document.createElement('div');
-  title.style.cssText = 'font-size:18px;font-weight:700;margin-bottom:16px;color:#ff6666';
-  title.textContent = '⚠ JS Error Detected';
+    "position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999",
+    "background:rgba(180,10,10,0.92);color:#fff;display:none",
+    "flex-direction:column;align-items:flex-start;justify-content:flex-start",
+    "padding:24px 20px;font-family:monospace;font-size:13px;line-height:1.7",
+    "white-space:pre-wrap;word-break:break-all;overflow-y:auto;overflow-x:hidden",
+    "text-align:left;box-sizing:border-box",
+  ].join(";");
+  const title = document.createElement("div");
+  title.style.cssText =
+    "font-size:18px;font-weight:700;margin-bottom:16px;color:#ff6666";
+  title.textContent = "⚠ JS Error Detected";
   el.appendChild(title);
-  const body = document.createElement('div');
-  body.id = 'error-overlay-body';
-  body.style.cssText = 'flex:1;width:100%';
+  const body = document.createElement("div");
+  body.id = "error-overlay-body";
+  body.style.cssText = "flex:1;width:100%";
   el.appendChild(body);
-  const dismiss = document.createElement('div');
-  dismiss.style.cssText = 'margin-top:16px;font-size:12px;color:#ffaaaa;width:100%;text-align:center';
-  dismiss.textContent = '(tap to dismiss)';
+  const dismiss = document.createElement("div");
+  dismiss.style.cssText =
+    "margin-top:16px;font-size:12px;color:#ffaaaa;width:100%;text-align:center";
+  dismiss.textContent = "(tap to dismiss)";
   el.appendChild(dismiss);
-  el.addEventListener('click', () => { el.style.display = 'none'; });
+  el.addEventListener("click", () => {
+    el.style.display = "none";
+  });
   document.body.appendChild(el);
   return el;
 }
 
 const errorOverlay = initErrorOverlay();
+console.log("[DEBUG] main.js: initErrorOverlay done");
 
 function showErrorOverlay(msg) {
   if (!errorOverlay) return;
-  errorOverlay.style.display = 'flex';
-  const body = document.getElementById('error-overlay-body');
+  errorOverlay.style.display = "flex";
+  const body = document.getElementById("error-overlay-body");
   if (body) body.textContent = msg;
   // Also log so desktop debug is possible
-  console.error('[ErrorOverlay]', msg);
+  console.error("[ErrorOverlay]", msg);
 }
 
 // Catch uncaught errors
-window.addEventListener('error', function(e) {
-  const detail = e.error ? (e.error.stack || e.error.message) : e.message;
-  showErrorOverlay(`${e.message}\n\nat ${e.filename}:${e.lineno}:${e.colno}\n\n${detail || ''}`);
+window.addEventListener("error", function (e) {
+  const detail = e.error ? e.error.stack || e.error.message : e.message;
+  showErrorOverlay(
+    `${e.message}\n\nat ${e.filename}:${e.lineno}:${e.colno}\n\n${detail || ""}`,
+  );
 });
 
 // Catch unhandled promise rejections
-window.addEventListener('unhandledrejection', function(e) {
-  showErrorOverlay('Unhandled Promise Rejection:\n\n' + (e.reason?.stack || e.reason?.message || String(e.reason)));
+window.addEventListener("unhandledrejection", function (e) {
+  showErrorOverlay(
+    "Unhandled Promise Rejection:\n\n" +
+      (e.reason?.stack || e.reason?.message || String(e.reason)),
+  );
 });
 
 // === Bootstrap ===
-const container = document.getElementById('game-container');
+console.log("[DEBUG] main.js: Bootstrap started");
+const container = document.getElementById("game-container");
+console.log("[DEBUG] main.js: got container", container);
 initScene(container);
+console.log("[DEBUG] main.js: initScene done");
 attachCameraControls();
+console.log("[DEBUG] main.js: attachCameraControls done");
 initUI();
+console.log("[DEBUG] main.js: initUI done");
 initAudioOnInteraction(); // Initialize audio on first user interaction
+console.log("[DEBUG] main.js: initAudioOnInteraction done");
 clock = new THREE.Clock();
+console.log("[DEBUG] main.js: Clock created");
 
 // Background world
 newGameSeed();
@@ -300,32 +398,54 @@ startBgLoop();
 // Start handler
 onStart(async () => {
   try {
-    console.log('[DEBUG] Game starting...');
+    console.log("[DEBUG] Game starting...");
     cleanupScene();
-    resetSceneForGame();   // Reuse existing renderer — no WebGL context recreation
+    resetSceneForGame(); // Reuse existing renderer — no WebGL context recreation
     clock = new THREE.Clock();
     newGameSeed();
     buildWorld();
-    console.log('[DEBUG] World built, creating player...');
+    console.log("[DEBUG] World built, creating player...");
 
     createPlayer();
-    console.log('[DEBUG] Player created, creating pursuer...');
+    console.log("[DEBUG] Player created, creating pursuer...");
     createPursuer();
-    console.log('[DEBUG] Pursuer created, initializing gyro...');
+    console.log("[DEBUG] Pursuer created, initializing gyro...");
     try {
       await initGyro();
     } catch (e) {
-      console.warn('陀螺仪不可用，继续游戏', e);
+      console.warn("陀螺仪不可用，继续游戏", e);
     }
     initJournal();
-    console.log('[DEBUG] Game start complete, entering game loop');
+    initVoice();
+    // Priority bridge: let journal check if voice is showing
+    window._isVoiceShowing = isVoiceShowing;
+    window._dismissVoicePopup = dismissVoicePopupForJournal;
+    // Bridge: let journal/voice dismiss HUD hints
+    window._dismissHUDHint = dismissHUDHint;
+    // Opening voice — delayed 3s after game starts
+    setTimeout(() => triggerVoice("opening"), 3000);
+    console.log("[DEBUG] Game start complete, entering game loop");
 
     onFragmentCollected((id, count) => {
       // Immediately update score display (don't wait for next updateUI frame)
       refreshScoreDisplay();
-      if (count === 1) triggerJournal('first_fragment');
+      // Skip voice for count===3 so hidden_awaken journal gets sole focus
+      if (count !== 3) triggerVoice("fragment_taken");
+
+      // Delay journal triggers so they don't get suppressed by voice priority
+      // (voice shows for 5s; journal checks isVoiceShowing and skips if active)
+      if (count === 1) setTimeout(() => triggerJournal("first_fragment"), 5500);
+
+      // When all 3 visible fragments collected, activate hidden fragment signals
+      if (count === 3) {
+        activateHiddenSignals();
+        triggerJournal("hidden_awaken");
+        console.log("[Fragment] All visible collected, hidden signals activated");
+      }
+
+      if (count >= getTotalFragments() - 1) triggerVoice("near_victory");
       if (count >= getTotalFragments()) {
-        endGame('win');
+        endGame("win");
         playVictory();
         return;
       }
@@ -337,21 +457,22 @@ onStart(async () => {
 
     startGameLoop();
   } catch (err) {
-    console.error('[DEBUG] Game start failed:', err);
-    showErrorOverlay('[Game Start] ' + (err.stack || err.message));
+    console.error("[DEBUG] Game start failed:", err);
+    showErrorOverlay("[Game Start] " + (err.stack || err.message));
   }
 });
 
 // Restart handler
 onRestart(() => {
   cleanupScene();
-  resetSceneForGame();   // Reuse existing renderer
+  resetSceneForGame(); // Reuse existing renderer
   clearAllParticles();
   clock = new THREE.Clock();
   resetPlayer();
   resetPursuer();
   resetFragments();
   resetJournal();
+  resetVoice();
   resetUI();
   resetGyro();
 

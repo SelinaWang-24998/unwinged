@@ -16,14 +16,14 @@
     <div id="hud">
       <div id="hud-left">
         <div id="journal-mini">
-          日志<br /><span id="journal-mini-lines"></span>
+          怪物日志<br /><span id="journal-mini-lines"></span>
         </div>
       </div>
       <div id="hud-right">
-        <div id="score-display">碎片: <span id="score">0</span>/3</div>
+        <div id="score-display">碎片: <span id="score">0</span>/5</div>
         <div id="lives-display">生命: <span id="lives">1</span></div>
         <div id="timer-display">时间: <span id="timer">6:00</span></div>
-        <div id="gyro-mode">模式: <span id="mode-label">地形</span></div>
+        <div id="gyro-mode">模式: <span id="mode-label">追捕者</span></div>
         <button id="pause-btn" type="button">暂停</button>
       </div>
     </div>
@@ -33,11 +33,16 @@
       <p id="journal-text"></p>
     </div>
 
-    <!-- Journal review -->
+    <!-- Monster journal review panel (Tab to open) -->
     <div id="journal-review" class="hidden">
-      <h3>观察日志</h3>
-      <ul id="journal-list"></ul>
-      <button id="journal-close">关闭 [Tab]</button>
+      <h3>怪物日志</h3>
+      <ul id="journal-review-list"></ul>
+      <button id="journal-close" type="button">关闭</button>
+    </div>
+
+    <!-- Pursuer Voice popup -->
+    <div id="voice-popup" class="hidden">
+      <p id="voice-text"></p>
     </div>
 
     <!-- Rotate prompt (portrait → landscape) -->
@@ -146,6 +151,7 @@
         <div id="pause-title">已暂停</div>
         <button id="resume-btn" type="button">继续</button>
         <button id="pause-restart-btn" type="button">重新开始</button>
+        <button id="recalibrate-btn" type="button">重新校准</button>
         <button id="pause-end-btn" type="button">结束游戏</button>
       </div>
     </div>

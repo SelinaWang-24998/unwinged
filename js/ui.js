@@ -9,6 +9,7 @@ import {
   getGyroMode,
   pcGyroPulse,
   requestGyroPermission,
+  requestRecalibration,
 } from "./gyro.js";
 import {
   setKey,
@@ -19,7 +20,7 @@ import {
   getPlayerPosition,
 } from "./player.js";
 import { triggerJournal } from "./journal.js";
-import { showReview, hideReview, isReviewVisible } from "./journal.js";
+import { isVoiceShowing, getVoiceHistory } from "./voice.js";
 import { playAlert, playVictory, playGameOver } from "./audio.js";
 
 const isByteDanceWebView = /aweme|ttwebview|toutiao|bytedance/i.test(
@@ -112,6 +113,7 @@ let leaderboardPanel,
   leaderboardClose,
   leaderboardShare,
   leaderboardTabs;
+let fullscreenPrompt;
 let isMobile = false;
 let lastGameStats = null; // stored after each game for leaderboard
 
@@ -528,6 +530,7 @@ function startCountdown() {
 }
 
 export function initUI() {
+  try {
   scoreEl = document.getElementById("score");
   livesEl = document.getElementById("lives");
   timerEl = document.getElementById("timer");
@@ -557,7 +560,10 @@ export function initUI() {
   leaderboardClose = document.getElementById("leaderboard-close");
   leaderboardShare = document.getElementById("leaderboard-share");
   leaderboardTabs = document.getElementById("leaderboard-tabs");
+  fullscreenPrompt = document.getElementById("fullscreen-prompt");
   const leaderboardBtn = document.getElementById("leaderboard-btn");
+
+  let lastPointerActionAt = 0;
 
   // Detect mobile
   isMobile =
@@ -565,26 +571,18 @@ export function initUI() {
     "ontouchstart" in window;
   if (isMobile) {
     document.getElementById("mobile-controls")?.classList.remove("hidden");
+    document.getElementById("keyboard-viz")?.classList.add("hidden");
   }
 
-  let lastPointerActionAt = 0;
-  function shouldAcceptPointerAction(e) {
+  function shouldAcceptPointerAction() {
     const now = performance.now();
-    if (now - lastPointerActionAt < 450) return false;
+    if (now - lastPointerActionAt < 300) return false;
     lastPointerActionAt = now;
-    if (e) {
-      try {
-        e.preventDefault();
-      } catch (err) {}
-      try {
-        e.stopPropagation();
-      } catch (err) {}
-    }
     return true;
   }
 
   async function ensureMobileFullscreenLandscape() {
-    if (!isMobile) return true;
+    if (!isMobile) return;
     await requestLandscape();
     const W = window.innerWidth;
     const H = window.innerHeight;
@@ -593,90 +591,72 @@ export function initUI() {
     if (isPortrait) {
       document.body.classList.add("portrait-lock");
       if (rotatePrompt) rotatePrompt.style.display = "flex";
-      return false;
+    } else {
+      document.body.classList.remove("portrait-lock");
+      if (rotatePrompt) rotatePrompt.style.display = "none";
     }
-    document.body.classList.remove("portrait-lock");
-    if (rotatePrompt) rotatePrompt.style.display = "none";
-
     const isFs =
       !!document.fullscreenElement || !!document.webkitFullscreenElement;
     if (isByteDanceWebView || !canFullscreen()) {
       if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
-      return true;
-    }
-    const fullscreenPrompt = document.getElementById("fullscreen-prompt");
-    if (!isFs) {
+    } else if (!isFs) {
       if (fullscreenPrompt) fullscreenPrompt.classList.remove("hidden");
-      return false;
     }
-    return true;
   }
 
   async function startFromHome() {
     if (gameRunning || gameOver || paused || countdownActive) return;
-    // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
-    requestGyroPermission(); // 不 await，避免阻塞倒计时
-    const ok = await ensureMobileFullscreenLandscape();
-    if (!ok) return;
-    startScreen.classList.add("hidden");
-    startCountdown();
+    console.log("点击进入岛屿，startFromHome 运行");
+    try {
+      // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
+      requestGyroPermission(); // 不 await，避免阻塞倒计时
+      ensureMobileFullscreenLandscape(); // 不阻塞倒计时，尽力争就好
+      startScreen.classList.add("hidden");
+      console.log("准备 startCountdown");
+      startCountdown();
+    } catch (err) {
+      console.error("startFromHome 出错:", err);
+      alert("启动失败: " + err.message);
+    }
   }
-  startBtn.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    startFromHome();
-  });
   startBtn.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
     startFromHome();
   });
 
   function goHome() {
     endScreen.classList.add("hidden");
-    closeHonorPanel();
-    closeLeaderboard();
+  closeHonorPanel();
+  closeLeaderboard();
+  hideJournalReview();
     if (onRestartCallback) onRestartCallback();
   }
 
-  homeBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    goHome();
-  });
   homeBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     goHome();
   });
 
-  honorBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    openHonorPanel();
-  });
   honorBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     openHonorPanel();
-  });
-  honorClose?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    closeHonorPanel();
   });
   honorClose?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     closeHonorPanel();
   });
 
-  leaderboardBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    openLeaderboard();
-  });
   leaderboardBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     openLeaderboard();
-  });
-  leaderboardClose?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    closeLeaderboard();
   });
   leaderboardClose?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     closeLeaderboard();
   });
   leaderboardShare?.addEventListener("click", () => shareLeaderboard());
@@ -689,59 +669,36 @@ export function initUI() {
   async function restartRun() {
     if (onRestartCallback) onRestartCallback();
     requestGyroPermission();
-    const ok = await ensureMobileFullscreenLandscape();
-    if (!ok) return;
+    await ensureMobileFullscreenLandscape();
     endScreen.classList.add("hidden");
     startScreen?.classList.add("hidden");
     startCountdown();
   }
-  restartBtn.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    restartRun();
-  });
   restartBtn.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     restartRun();
   });
 
-  pauseBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    if (!gameRunning || gameOver) return;
-    setPaused(!paused);
-  });
   pauseBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     if (!gameRunning || gameOver) return;
     setPaused(!paused);
-  });
-  resumeBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    setPaused(false);
   });
   resumeBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     setPaused(false);
   });
-  pauseRestartBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    (async () => {
-      setPaused(false);
-      if (onRestartCallback) onRestartCallback();
-      requestGyroPermission();
-      const ok = await ensureMobileFullscreenLandscape();
-      if (!ok) return;
-      startScreen?.classList.add("hidden");
-      startCountdown();
-    })();
-  });
   pauseRestartBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     (async () => {
       setPaused(false);
       if (onRestartCallback) onRestartCallback();
       requestGyroPermission();
-      const ok = await ensureMobileFullscreenLandscape();
-      if (!ok) return;
+      await ensureMobileFullscreenLandscape();
       startScreen?.classList.add("hidden");
       startCountdown();
     })();
@@ -751,13 +708,18 @@ export function initUI() {
     if (!gameRunning || gameOver) return;
     endGame("quit");
   }
-  pauseEndBtn?.addEventListener("pointerdown", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
+  pauseEndBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
     endRunFromPause();
   });
-  pauseEndBtn?.addEventListener("click", (e) => {
-    if (!shouldAcceptPointerAction(e)) return;
-    endRunFromPause();
+
+  // Recalibrate gyro button in pause menu
+  const recalibrateBtn = document.getElementById("recalibrate-btn");
+  recalibrateBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!shouldAcceptPointerAction()) return;
+    requestRecalibration();
   });
 
   // Keyboard visualizer helper
@@ -778,7 +740,9 @@ export function initUI() {
       modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
     }
     if (e.code === "Escape") {
-      if (gameRunning && !gameOver) setPaused(!paused);
+      if (isJournalReviewVisible()) {
+        hideJournalReview();
+      } else if (gameRunning && !gameOver) setPaused(!paused);
     }
     if (e.code === "KeyE") {
       placeBlockAction();
@@ -788,8 +752,7 @@ export function initUI() {
     }
     if (e.code === "Tab") {
       e.preventDefault();
-      if (isReviewVisible()) hideReview();
-      else showReview();
+      toggleJournalReview();
     }
     if (e.code === "Space") e.preventDefault();
 
@@ -820,6 +783,18 @@ export function initUI() {
   if (isMobile) setupJoystick();
   setupMobileButtons();
   initOrientationGuards();
+
+  // Monster journal review close button
+  const journalReviewPanel = document.getElementById('journal-review');
+  const journalReviewClose = document.getElementById('journal-close');
+  journalReviewClose?.addEventListener('click', (e) => {
+    e.preventDefault();
+    hideJournalReview();
+  });
+  } catch(err) {
+    console.error("initUI() 失败:", err);
+    alert("initUI() 失败: " + err.message);
+  }
 }
 
 function setupJoystick() {
@@ -939,18 +914,8 @@ function initOrientationGuards() {
   // Fullscreen prompt button → retry
   const fsBtn = document.getElementById("fullscreen-prompt-btn");
   if (fsBtn) {
-    fsBtn.addEventListener("pointerdown", async (e) => {
-      try {
-        e.preventDefault();
-      } catch (err) {}
-      try {
-        e.stopPropagation();
-      } catch (err) {}
-      hideFsPrompt();
-      await requestLandscape();
-      handleOrientationChange();
-    });
-    fsBtn.addEventListener("click", async () => {
+    fsBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
       hideFsPrompt();
       await requestLandscape();
       handleOrientationChange();
@@ -1100,83 +1065,101 @@ export function endGame(reason) {
   if (isNewBestSpeed) progress.bestAvgSpeed = avgSpeed;
 
   const newlyUnlocked = [];
-  if (isWin && timeUsed <= 60 && unlock("speed_gale"))
-    newlyUnlocked.push("speed_gale");
-  if (isWin && (runStats?.idleTime ?? 999) <= 2.0 && unlock("speed_dash"))
-    newlyUnlocked.push("speed_dash");
-  if (isWin && timeRemaining >= 180 && unlock("speed_half"))
-    newlyUnlocked.push("speed_half");
-  if (isNewBestTime && unlock("speed_best_time"))
-    newlyUnlocked.push("speed_best_time");
-  if (isNewBestSpeed && unlock("speed_best_speed"))
-    newlyUnlocked.push("speed_best_speed");
+  const earnedThisRun = []; // All honors whose conditions were met this run (for display)
 
-  if (reason === "time" && starCount === 0 && unlock("survive_zero"))
-    newlyUnlocked.push("survive_zero");
-  if (
-    reason === "time" &&
-    (runStats?.distance ?? 999) <= 10 &&
-    unlock("survive_hide")
-  )
-    newlyUnlocked.push("survive_hide");
-  if (progress.streakTimeout >= 5 && unlock("survive_timeout_5"))
-    newlyUnlocked.push("survive_timeout_5");
+  if (isWin && timeUsed <= 60) {
+    earnedThisRun.push("speed_gale");
+    if (unlock("speed_gale")) newlyUnlocked.push("speed_gale");
+  }
+  if (isWin && (runStats?.idleTime ?? 999) <= 2.0) {
+    earnedThisRun.push("speed_dash");
+    if (unlock("speed_dash")) newlyUnlocked.push("speed_dash");
+  }
+  if (isWin && timeRemaining >= 180) {
+    earnedThisRun.push("speed_half");
+    if (unlock("speed_half")) newlyUnlocked.push("speed_half");
+  }
+  if (isNewBestTime) {
+    earnedThisRun.push("speed_best_time");
+    if (unlock("speed_best_time")) newlyUnlocked.push("speed_best_time");
+  }
+  if (isNewBestSpeed) {
+    earnedThisRun.push("speed_best_speed");
+    if (unlock("speed_best_speed")) newlyUnlocked.push("speed_best_speed");
+  }
 
-  if (progress.streakThreeStar >= 4 && unlock("streak_3_4"))
-    newlyUnlocked.push("streak_3_4");
-  if (progress.streakThreeStar >= 5 && unlock("streak_3_5"))
-    newlyUnlocked.push("streak_3_5");
-  if (progress.totalThreeStar >= 20 && unlock("count_3_20"))
-    newlyUnlocked.push("count_3_20");
-  if (progress.streakTwoPlus >= 5 && unlock("streak_2plus_5"))
-    newlyUnlocked.push("streak_2plus_5");
+  if (reason === "time" && starCount === 0) {
+    earnedThisRun.push("survive_zero");
+    if (unlock("survive_zero")) newlyUnlocked.push("survive_zero");
+  }
+  if (reason === "time" && (runStats?.distance ?? 999) <= 10) {
+    earnedThisRun.push("survive_hide");
+    if (unlock("survive_hide")) newlyUnlocked.push("survive_hide");
+  }
+  if (progress.streakTimeout >= 5) {
+    earnedThisRun.push("survive_timeout_5");
+    if (unlock("survive_timeout_5")) newlyUnlocked.push("survive_timeout_5");
+  }
 
-  if (progress.streakZero >= 3 && unlock("fun_zero_3"))
-    newlyUnlocked.push("fun_zero_3");
-  if (
-    reason === "time" &&
-    starCount > 0 &&
-    starCount < totalFragments &&
-    unlock("fun_time_lost")
-  )
-    newlyUnlocked.push("fun_time_lost");
-  if (
-    reason === "caught" &&
-    starCount >= 1 &&
-    starCount <= 2 &&
-    unlock("fun_mid_caught")
-  )
-    newlyUnlocked.push("fun_mid_caught");
-  if (isWin && timeRemaining <= 5 && unlock("fun_lastsec"))
-    newlyUnlocked.push("fun_lastsec");
+  if (progress.streakThreeStar >= 4) {
+    earnedThisRun.push("streak_3_4");
+    if (unlock("streak_3_4")) newlyUnlocked.push("streak_3_4");
+  }
+  if (progress.streakThreeStar >= 5) {
+    earnedThisRun.push("streak_3_5");
+    if (unlock("streak_3_5")) newlyUnlocked.push("streak_3_5");
+  }
+  if (progress.totalThreeStar >= 20) {
+    earnedThisRun.push("count_3_20");
+    if (unlock("count_3_20")) newlyUnlocked.push("count_3_20");
+  }
+  if (progress.streakTwoPlus >= 5) {
+    earnedThisRun.push("streak_2plus_5");
+    if (unlock("streak_2plus_5")) newlyUnlocked.push("streak_2plus_5");
+  }
 
-  if (
-    isWin &&
-    (runStats?.chaseStarts ?? 0) === 0 &&
-    isNewBestTime &&
-    unlock("hard_perfect")
-  )
-    newlyUnlocked.push("hard_perfect");
-  if (isWin && timeRemaining <= 10 && unlock("hard_10s"))
-    newlyUnlocked.push("hard_10s");
+  if (progress.streakZero >= 3) {
+    earnedThisRun.push("fun_zero_3");
+    if (unlock("fun_zero_3")) newlyUnlocked.push("fun_zero_3");
+  }
+  if (reason === "time" && starCount > 0 && starCount < totalFragments) {
+    earnedThisRun.push("fun_time_lost");
+    if (unlock("fun_time_lost")) newlyUnlocked.push("fun_time_lost");
+  }
+  if (reason === "caught" && starCount >= 1 && starCount <= 2) {
+    earnedThisRun.push("fun_mid_caught");
+    if (unlock("fun_mid_caught")) newlyUnlocked.push("fun_mid_caught");
+  }
+  if (isWin && timeRemaining <= 5) {
+    earnedThisRun.push("fun_lastsec");
+    if (unlock("fun_lastsec")) newlyUnlocked.push("fun_lastsec");
+  }
+
+  if (isWin && (runStats?.chaseStarts ?? 0) === 0 && isNewBestTime) {
+    earnedThisRun.push("hard_perfect");
+    if (unlock("hard_perfect")) newlyUnlocked.push("hard_perfect");
+  }
+  if (isWin && timeRemaining <= 10) {
+    earnedThisRun.push("hard_10s");
+    if (unlock("hard_10s")) newlyUnlocked.push("hard_10s");
+  }
 
   const hasSpeedHonor = [
-    "speed_gale",
-    "speed_dash",
-    "speed_half",
-    "speed_best_time",
-    "speed_best_speed",
+    "speed_gale", "speed_dash", "speed_half",
+    "speed_best_time", "speed_best_speed",
   ].some((id) => hasUnlocked(id) || newlyUnlocked.includes(id));
   const hasSurviveHonor = [
-    "survive_zero",
-    "survive_timeout_5",
-    "survive_hide",
+    "survive_zero", "survive_timeout_5", "survive_hide",
   ].some((id) => hasUnlocked(id) || newlyUnlocked.includes(id));
-  if (hasSpeedHonor && hasSurviveHonor && unlock("hard_allround"))
-    newlyUnlocked.push("hard_allround");
+  if (hasSpeedHonor && hasSurviveHonor) {
+    earnedThisRun.push("hard_allround");
+    if (unlock("hard_allround")) newlyUnlocked.push("hard_allround");
+  }
 
-  if (progress.gamesPlayed >= 1000 && unlock("mystery_1000"))
-    newlyUnlocked.push("mystery_1000");
+  if (progress.gamesPlayed >= 1000) {
+    earnedThisRun.push("mystery_1000");
+    if (unlock("mystery_1000")) newlyUnlocked.push("mystery_1000");
+  }
 
   saveProgress();
   renderHonorList();
@@ -1207,16 +1190,16 @@ export function endGame(reason) {
   endScore.innerHTML = `收集碎片: ${score}/${totalFragments}<br><span class="end-stars">${starsHtml}</span>`;
   endJournalHint.textContent = `你打败了全国${percentile}%的玩家！`;
   if (endHonorsEl) {
-    if (newlyUnlocked.length) {
-      const names = newlyUnlocked
-        .map((id) => HONORS.find((h) => h.id === id))
+    if (earnedThisRun.length) {
+      endHonorsEl.innerHTML = earnedThisRun
+        .map((id) => {
+          const h = HONORS.find((hh) => hh.id === id);
+          if (!h) return "";
+          const isNew = newlyUnlocked.includes(id);
+          const cls = isNew ? "end-honor" : "end-honor owned";
+          return `<span class="${cls}">${getHonorDisplayName(h)}</span>`;
+        })
         .filter(Boolean)
-        .map((h) => getHonorDisplayName(h))
-        .join("、");
-      endHonorsEl.innerHTML = newlyUnlocked
-        .map((id) => HONORS.find((h) => h.id === id))
-        .filter(Boolean)
-        .map((h) => `<span class="end-honor">${getHonorDisplayName(h)}</span>`)
         .join("");
     } else {
       endHonorsEl.textContent = "";
@@ -1283,4 +1266,77 @@ export function refreshScoreDisplay() {
   if (livesEl) livesEl.textContent = lives;
 }
 
+// Show a dramatic fullscreen message (e.g. "深埋地底的宝藏啊，听从我的召唤吧")
+export function showGameMessage(text, duration = 3000) {
+  let el = document.getElementById("game-message");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "game-message";
+    el.style.cssText = [
+      "position:fixed;top:0;left:0;right:0;bottom:0;z-index:9000",
+      "display:flex;align-items:center;justify-content:center;pointer-events:none",
+    ].join(";");
+    const inner = document.createElement("div");
+    inner.id = "game-message-text";
+    inner.style.cssText = [
+      "color:#ffd700;font-size:22px;font-weight:700;text-align:center",
+      "text-shadow:0 0 20px rgba(255,200,0,0.8),0 0 40px rgba(255,150,0,0.4)",
+      "padding:20px 30px;max-width:80%;line-height:1.6",
+      "opacity:0;transform:scale(0.8);transition:opacity 0.5s,transform 0.5s",
+    ].join(";");
+    el.appendChild(inner);
+    document.body.appendChild(el);
+  }
+  const inner = document.getElementById("game-message-text");
+  if (inner) {
+    inner.textContent = text;
+    inner.style.opacity = "1";
+    inner.style.transform = "scale(1)";
+  }
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => {
+    if (inner) {
+      inner.style.opacity = "0";
+      inner.style.transform = "scale(0.8)";
+    }
+  }, duration - 500);
+}
+
 export { isMobile };
+
+// === Monster Journal Review Panel ===
+function showJournalReview() {
+  const panel = document.getElementById('journal-review');
+  const list = document.getElementById('journal-review-list');
+  if (!panel || !list) return;
+
+  const history = getVoiceHistory();
+  if (history.length === 0) {
+    list.innerHTML = '<li style="color:#666;font-style:normal;">暂无记录</li>';
+  } else {
+    list.innerHTML = history.map((text, i) =>
+      `<li>${i + 1}. ${text}</li>`
+    ).join('');
+  }
+  panel.classList.remove('hidden');
+}
+
+function hideJournalReview() {
+  const panel = document.getElementById('journal-review');
+  if (panel) panel.classList.add('hidden');
+}
+
+export function toggleJournalReview() {
+  const panel = document.getElementById('journal-review');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    showJournalReview();
+  } else {
+    hideJournalReview();
+  }
+}
+
+export function isJournalReviewVisible() {
+  const panel = document.getElementById('journal-review');
+  return panel ? !panel.classList.contains('hidden') : false;
+}

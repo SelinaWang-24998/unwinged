@@ -63,10 +63,12 @@ export function initScene(container) {
   renderer.shadowMap.enabled = true;
   container.appendChild(renderer.domElement);
 
-  // Lighting
-  const ambient = new THREE.AmbientLight(0x8899bb, 0.8);
+  // Lighting — warm tones for DuangDuang feel
+  const ambient = new THREE.AmbientLight(0xffeedd, 0.6);
   scene.add(ambient);
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  const hemi = new THREE.HemisphereLight(0x87CEEB, 0x5ea838, 0.4);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xfff5e6, 1.2);
   dir.position.set(10, 20, 5);
   dir.castShadow = true;
   dir.shadow.mapSize.set(1024, 1024);

@@ -3,6 +3,7 @@ import { getScene, getTileSize, getGridSize } from "./scene.js";
 import { getPlayerPosition } from "./player.js";
 import { isLand, getCoverHeight, getTerrainHeight } from "./island.js";
 import { isInShallowWater, isInDeepWater, getWaveForce } from "./ocean.js";
+import { triggerVoice } from "./voice.js";
 
 const TILE = getTileSize();
 const GRID = getGridSize();
@@ -251,6 +252,7 @@ export function updatePursuer(delta) {
       if (!occluded) {
         state = "CHASE";
         chaseTimer = CHASE_DURATION;
+        triggerVoice("spot"); // 追捕者发现玩家
       }
     }
   }
@@ -308,6 +310,15 @@ export function updatePursuer(delta) {
   const distToPlayer = position.distanceTo(playerPos);
   if (distToPlayer < 0.8) {
     caughtPlayer = true;
+  }
+
+  // Voice triggers based on distance
+  if (state === "CHASE") {
+    if (distToPlayer < 2) {
+      triggerVoice("almost_caught");
+    } else if (distToPlayer < 4) {
+      triggerVoice("approach");
+    }
   }
 
   // Update vision cone
@@ -400,6 +411,7 @@ function chase(delta, playerPos) {
   chaseTimer -= delta;
   if (chaseTimer <= 0) {
     state = "PATROL";
+    triggerVoice("lost"); // 被甩开
     return;
   }
   const dir = playerPos.clone().sub(position);

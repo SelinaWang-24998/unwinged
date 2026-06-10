@@ -31,6 +31,11 @@ let lastFacing = 0;
 const AUTO_STEP_UP = 0.7;
 const JUMP_STEP_UP = 1.3;
 
+// Squash & stretch state
+let squashTimer = 0;
+let squashType = null; // 'stretch' (jumping) or 'squash' (landing)
+let wasJumping = false;
+
 // Input state
 const keys = {};
 let joystickInput = { x: 0, z: 0 };
@@ -141,6 +146,9 @@ export function updatePlayer(delta) {
     isJumping = true;
     jumpVelocity = JUMP_FORCE;
     playJump();
+    // Squash & stretch: stretch on jump
+    squashType = 'stretch';
+    squashTimer = 0.2;
   }
 
   // Normalize
@@ -177,6 +185,26 @@ export function updatePlayer(delta) {
     const fromH = getTerrainHeight(fromGX, fromGZ);
     const toH = getTerrainHeight(toGX, toGZ);
     const dh = toH - fromH;
+    
+    // Tree collision detection (only for hero trees)
+    const playerY = position.y;
+    const scene = getScene();
+    const foliageGroup = scene.getObjectByName('foliage');
+    if (foliageGroup) {
+      for (const child of foliageGroup.children) {
+        if (child.userData.isSolid && child.userData.collisionCenter) {
+          const center = child.userData.collisionCenter;
+          const radius = child.userData.collisionRadius || 0.6;
+          const dx = toX - center.x;
+          const dz = toZ - center.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < radius + 0.3) { // 0.3 is player radius
+            return { x: fromX, z: fromZ }; // Block movement
+          }
+        }
+      }
+    }
+    
     if (dh <= AUTO_STEP_UP) return { x: toX, z: toZ };
     if (allowJumpStep && dh <= JUMP_STEP_UP) return { x: toX, z: toZ };
     if (dh > 0) return { x: fromX, z: fromZ };
@@ -224,7 +252,13 @@ export function updatePlayer(delta) {
       position.y = terrainY;
       isJumping = false;
       jumpVelocity = 0;
+      // Squash & stretch: squash on landing
+      if (wasJumping) {
+        squashType = 'squash';
+        squashTimer = 0.2;
+      }
     }
+    wasJumping = isJumping;
   } else {
     // Ground level
     const terrainY = getTerrainHeight(gx, gz) + 0.5;
@@ -250,6 +284,28 @@ export function updatePlayer(delta) {
 
   const lerp = 1 - Math.pow(0.001, delta);
   playerMesh.rotation.y = THREE.MathUtils.lerp(playerMesh.rotation.y, lastFacing, lerp);
+
+  // Squash & stretch animation
+  if (squashTimer > 0) {
+    squashTimer -= delta;
+    const t = Math.max(0, squashTimer / 0.2); // 0..1
+    if (squashType === 'stretch') {
+      // Jump: stretch tall and narrow
+      playerMesh.scale.y = 1.5 + 0.5 * t;
+      playerMesh.scale.x = 1.5 - 0.3 * t;
+      playerMesh.scale.z = 1.5 - 0.3 * t;
+    } else if (squashType === 'squash') {
+      // Land: squash flat and wide
+      playerMesh.scale.y = 1.5 - 0.5 * t;
+      playerMesh.scale.x = 1.5 + 0.4 * t;
+      playerMesh.scale.z = 1.5 + 0.4 * t;
+    }
+  } else {
+    // Recover to normal scale
+    playerMesh.scale.x = THREE.MathUtils.lerp(playerMesh.scale.x, 1.5, lerp);
+    playerMesh.scale.y = THREE.MathUtils.lerp(playerMesh.scale.y, 1.5, lerp);
+    playerMesh.scale.z = THREE.MathUtils.lerp(playerMesh.scale.z, 1.5, lerp);
+  }
 
   if (moving && !isJumping) {
     const stepRate = THREE.MathUtils.clamp(moveSpeed / SPEED_LAND, 0.2, 1.2) * 11;
