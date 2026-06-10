@@ -217,43 +217,15 @@
       </div>
     </div>
 
-    <script>
-      (function () {
-        function showBootError(err) {
-          try {
-            var msg =
-              err && (err.stack || err.message)
-                ? err.stack || err.message
-                : String(err);
-            var el = document.createElement("div");
-            el.style.cssText = [
-              // 'position:fixed',
-              // 'top:0',
-              // 'left:0',
-              // 'right:0',
-              // 'bottom:0',
-              // 'z-index:99999',
-              // 'background:#0a0a1e',
-              // 'color:#ffdddd',
-              // 'padding:16px',
-              // 'font-family:monospace',
-              // 'white-space:pre-wrap',
-              // 'overflow:auto',
-              // 'box-sizing:border-box'
-            ].join(";");
-            el.textContent =
-              "启动失败（可能是不支持 ES Module 或资源被拦截）：\n\n" + msg;
-            document.body.appendChild(el);
-          } catch (e) {}
-        }
-
-        try {
-          // Dynamic import works in modern WebViews; if module scripts are blocked, this gives us a chance to surface a readable error.
-          import("./js/main.js").catch(showBootError);
-        } catch (e) {
-          showBootError(e);
-        }
-      })();
+    <script type="module">
+      // 抖音 WebView 等环境需要在 module 上下文中才能使用动态 import
+      import("./js/main.js").catch(function(err) {
+        var msg = err && (err.stack || err.message) ? (err.stack || err.message) : String(err);
+        var el = document.createElement("div");
+        el.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(180,10,10,0.92);color:#fff;padding:24px;font-family:monospace;font-size:13px;white-space:pre-wrap;overflow:auto;box-sizing:border-box";
+        el.textContent = "启动失败（模块加载错误）：\n\n" + msg;
+        document.body.appendChild(el);
+      });
     </script>
   </body>
 </html>
