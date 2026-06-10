@@ -3,6 +3,7 @@ import { getScene } from './scene.js';
 
 const TILE = 1;
 const blocks = []; // all island blocks { mesh, gridX, gridZ, baseY }
+const protectedBlocks = new Set(); // blocks that cannot be removed by grab
 
 const LAND_RADIUS = 17;
 const foliageCover = new Map();
@@ -102,13 +103,13 @@ function createFoliage(scene) {
   const group = new THREE.Group();
   group.name = 'foliage';
 
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b6a3e, roughness: 0.9 });
-  const leafMatA = new THREE.MeshStandardMaterial({ color: 0x4ea84a, roughness: 0.85, flatShading: true });
-  const leafMatB = new THREE.MeshStandardMaterial({ color: 0x6db840, roughness: 0.85, flatShading: true });
-  const grassMat = new THREE.MeshStandardMaterial({ color: 0x78c85a, roughness: 0.9, flatShading: true });
+  const trunkMat = new THREE.MeshToonMaterial({ color: 0x8b6a3e });
+  const leafMatA = new THREE.MeshToonMaterial({ color: 0x4ea84a });
+  const leafMatB = new THREE.MeshToonMaterial({ color: 0x6db840 });
+  const grassMat = new THREE.MeshToonMaterial({ color: 0x78c85a });
 
-  const trunkGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.95, 6);
-  const leafGeo = new THREE.ConeGeometry(0.45, 0.8, 6);
+  const trunkGeo = new THREE.CylinderGeometry(0.1, 0.14, 0.95, 6);
+  const leafGeo = new THREE.DodecahedronGeometry(0.45, 0);
   const bushGeo = new THREE.DodecahedronGeometry(0.22, 0);
   const grassGeo = new THREE.ConeGeometry(0.08, 0.22, 5, 1);
 
@@ -138,17 +139,11 @@ function createFoliage(scene) {
         trunk.position.y = 0.48;
         tree.add(trunk);
 
-        // Double cone stack — DuangDuang tree
-        const leafMat = r2 < 0.5 ? leafMatA : leafMatB;
-        const s = 1.15 + r2 * 0.55;
-        const leaf1 = new THREE.Mesh(leafGeo, leafMat);
-        leaf1.position.y = 0.9;
-        leaf1.scale.set(s * 1.1, s * 0.85, s * 1.1);
-        tree.add(leaf1);
-        const leaf2 = new THREE.Mesh(leafGeo, leafMat);
-        leaf2.position.y = 1.25;
-        leaf2.scale.set(s * 0.7, s * 0.7, s * 0.7);
-        tree.add(leaf2);
+        const leaf = new THREE.Mesh(leafGeo, r2 < 0.5 ? leafMatA : leafMatB);
+        leaf.position.y = 1.06;
+        leaf.scale.setScalar(1.15 + r2 * 0.55);
+        leaf.rotation.set(r2 * 0.6, r2 * 2.0, r2 * 0.6);
+        tree.add(leaf);
 
         tree.position.set(gx * TILE, y + 0.02, gz * TILE);
         tree.rotation.y = r2 * Math.PI * 2;
@@ -272,6 +267,7 @@ const MIN_STACK_HEIGHT = 1;
 
 // Place a new block on top of existing terrain
 export function placeBlock(gx, gz) {
+  if (protectedBlocks.has(`${Math.round(gx)},${Math.round(gz)}`)) return false;
   const scene = getScene();
   const island = scene.getObjectByName('island');
   if (!island) return false;
@@ -303,6 +299,7 @@ export function placeBlock(gx, gz) {
 
 // Remove top block at position
 export function removeBlock(gx, gz) {
+  if (protectedBlocks.has(`${Math.round(gx)},${Math.round(gz)}`)) return false;
   const blockList = getBlockAt(gx, gz);
   if (blockList.length === 0) return false;
   if (blockList.length <= MIN_STACK_HEIGHT) return false;
@@ -342,6 +339,18 @@ export function canPlaceBlock(gx, gz) {
 
 // Check if player can remove a block at position
 export function canRemoveBlock(gx, gz) {
+  if (protectedBlocks.has(`${Math.round(gx)},${Math.round(gz)}`)) return false;
   const blockList = getBlockAt(gx, gz);
   return blockList.length > MIN_STACK_HEIGHT;
+}
+
+// Protect / unprotect a grid position from being removed by grab
+export function protectBlock(gx, gz) {
+  protectedBlocks.add(`${Math.round(gx)},${Math.round(gz)}`);
+}
+export function unprotectBlock(gx, gz) {
+  protectedBlocks.delete(`${Math.round(gx)},${Math.round(gz)}`);
+}
+export function isBlockProtected(gx, gz) {
+  return protectedBlocks.has(`${Math.round(gx)},${Math.round(gz)}`);
 }

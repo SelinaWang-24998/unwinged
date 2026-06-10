@@ -29,7 +29,14 @@ import {
 } from "./fragments.js";
 import { initGyro, updateGyro, resetGyro } from "./gyro.js";
 import { initJournal, triggerJournal, resetJournal } from "./journal.js";
-import { initVoice, triggerVoice, updateVoice, resetVoice, isVoiceShowing, dismissVoicePopupForJournal } from "./voice.js";
+import {
+  initVoice,
+  triggerVoice,
+  updateVoice,
+  resetVoice,
+  isVoiceShowing,
+  dismissVoicePopupForJournal,
+} from "./voice.js";
 import {
   initUI,
   updateUI,
@@ -63,6 +70,7 @@ import { initFoliageTracking } from "./terrain.js";
 
 let clock;
 let gameLoopId = null;
+let bgLoopId = null; // 添加背景循环的 id
 const cameraTargetPos = new THREE.Vector3();
 let cameraControlsCleanup = null;
 let camYaw = Math.PI / 4;
@@ -250,13 +258,17 @@ function buildWorld() {
 }
 
 function startGameLoop() {
+  // 先取消之前的所有循环
   if (gameLoopId) cancelAnimationFrame(gameLoopId);
+  if (bgLoopId) cancelAnimationFrame(bgLoopId);
+  gameLoopId = null;
+  bgLoopId = null;
 
   function animate() {
-    gameLoopId = requestAnimationFrame(animate);
-
+    // 只有在游戏真正运行时才继续
     if (!isGameRunning() || isGameOver() || isPaused()) {
       render();
+      gameLoopId = null;
       return;
     }
 
@@ -296,21 +308,32 @@ function startGameLoop() {
     camera.lookAt(pos.x, pos.y, pos.z);
 
     render();
+
+    // 只有应该继续运行时才调用下一帧
+    gameLoopId = requestAnimationFrame(animate);
   }
-  animate();
+
+  // 启动第一帧
+  gameLoopId = requestAnimationFrame(animate);
 }
 
 // Background render (no game logic, just visuals)
 function startBgLoop() {
+  if (bgLoopId) cancelAnimationFrame(bgLoopId);
+  bgLoopId = null;
+
   function bgAnimate() {
-    if (isGameRunning()) return; // Stop when game starts
+    if (isGameRunning()) {
+      bgLoopId = null;
+      return; // Stop when game starts
+    }
     const delta = Math.min(clock.getDelta(), 0.1);
     updateFragments(delta);
     updateOcean(delta);
     render();
-    requestAnimationFrame(bgAnimate);
+    bgLoopId = requestAnimationFrame(bgAnimate);
   }
-  bgAnimate();
+  bgLoopId = requestAnimationFrame(bgAnimate);
 }
 
 // === Mobile Error Overlay ===
@@ -348,7 +371,6 @@ function initErrorOverlay() {
 }
 
 const errorOverlay = initErrorOverlay();
-console.log("[DEBUG] main.js: initErrorOverlay done");
 
 function showErrorOverlay(msg) {
   if (!errorOverlay) return;
@@ -376,80 +398,63 @@ window.addEventListener("unhandledrejection", function (e) {
 });
 
 // === Bootstrap ===
-console.log("[DEBUG] main.js: Bootstrap started");
 const container = document.getElementById("game-container");
-console.log("[DEBUG] main.js: got container", container);
 initScene(container);
-console.log("[DEBUG] main.js: initScene done");
 attachCameraControls();
-console.log("[DEBUG] main.js: attachCameraControls done");
 initUI();
-console.log("[DEBUG] main.js: initUI done");
 initAudioOnInteraction(); // Initialize audio on first user interaction
-console.log("[DEBUG] main.js: initAudioOnInteraction done");
 clock = new THREE.Clock();
-console.log("[DEBUG] main.js: Clock created");
 
-// Background world
+// 不启动背景循环，直接渲染一次让用户看到画面
 newGameSeed();
 buildWorld();
-startBgLoop();
+render();
 
 // Start handler
-onStart(async () => {
+onStart(() => {
   try {
-    console.log("[DEBUG] Game starting...");
+    // 先停止背景循环
+    if (bgLoopId) {
+      cancelAnimationFrame(bgLoopId);
+      bgLoopId = null;
+    }
+
+    // 简化启动流程，移除所有阻塞操作
     cleanupScene();
-    resetSceneForGame(); // Reuse existing renderer — no WebGL context recreation
+    resetSceneForGame();
     clock = new THREE.Clock();
     newGameSeed();
     buildWorld();
-    console.log("[DEBUG] World built, creating player...");
 
     createPlayer();
-    console.log("[DEBUG] Player created, creating pursuer...");
     createPursuer();
-    console.log("[DEBUG] Pursuer created, initializing gyro...");
-    try {
-      await initGyro();
-    } catch (e) {
-      console.warn("陀螺仪不可用，继续游戏", e);
-    }
+
+    // 陀螺仪初始化完全同步，不阻塞
+    initGyro();
+
     initJournal();
     initVoice();
-    // Priority bridge: let journal check if voice is showing
+
     window._isVoiceShowing = isVoiceShowing;
     window._dismissVoicePopup = dismissVoicePopupForJournal;
-    // Bridge: let journal/voice dismiss HUD hints
     window._dismissHUDHint = dismissHUDHint;
-    // Opening voice — delayed 3s after game starts
+
     setTimeout(() => triggerVoice("opening"), 3000);
-    console.log("[DEBUG] Game start complete, entering game loop");
 
     onFragmentCollected((id, count) => {
-      // Immediately update score display (don't wait for next updateUI frame)
       refreshScoreDisplay();
-      // Skip voice for count===3 so hidden_awaken journal gets sole focus
       if (count !== 3) triggerVoice("fragment_taken");
-
-      // Delay journal triggers so they don't get suppressed by voice priority
-      // (voice shows for 5s; journal checks isVoiceShowing and skips if active)
       if (count === 1) setTimeout(() => triggerJournal("first_fragment"), 5500);
-
-      // When all 3 visible fragments collected, activate hidden fragment signals
       if (count === 3) {
         activateHiddenSignals();
         triggerJournal("hidden_awaken");
-        console.log("[Fragment] All visible collected, hidden signals activated");
       }
-
       if (count >= getTotalFragments() - 1) triggerVoice("near_victory");
       if (count >= getTotalFragments()) {
         endGame("win");
         playVictory();
         return;
       }
-
       playCollect();
       const pos = getPlayerPosition();
       spawnCollectParticles(pos.x, pos.y + 1, pos.z);
@@ -457,7 +462,7 @@ onStart(async () => {
 
     startGameLoop();
   } catch (err) {
-    console.error("[DEBUG] Game start failed:", err);
+    console.error("[Game Start] " + (err.stack || err.message));
     showErrorOverlay("[Game Start] " + (err.stack || err.message));
   }
 });
@@ -484,8 +489,11 @@ onRestart(() => {
 
   newGameSeed();
   buildWorld();
-  startBgLoop();
+  // 不启动背景循环
 });
 
 // === Orientation enforcement is handled by initOrientationGuards() in ui.js ===
 // CSS rotate-prompt is the primary lock; JS orientation.lock() is best-effort.
+
+// Signal to non-module fallback that JS loaded successfully
+window._moduleReady = true;

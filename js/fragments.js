@@ -1,7 +1,7 @@
 import * as THREE from './lib/three.module.js';
 import { getScene, getTileSize, getGridSize } from "./scene.js";
 import { getPlayerPosition } from "./player.js";
-import { getTerrainHeight, isLand, getCoverHeight, getBlockAt } from "./island.js";
+import { getTerrainHeight, isLand, getCoverHeight, getBlockAt, getBlocks, protectBlock, unprotectBlock } from "./island.js";
 import { isInShallowWater } from "./ocean.js";
 
 const TILE = getTileSize();
@@ -107,32 +107,45 @@ function randomizeFragmentPositions() {
     }
   }
 
-  // Fragment 3 & 4: hidden underground — place on SAFE land (not edges)
-  // Strategy: place on high terrain (h ≥ 0.8) at local LOW points (valleys/ depressions)
-  // so the fragment is buried under surrounding high ground.
-  // Fragment Y = terrain height (NOT above it) — it's underground.
-  // Enforce minimum distance (≥ 4 grid cells) between the two hidden fragments
+  // Fragment 3 & 4: hidden underground — buried 1-2 layers under high terrain (h > 3)
+  // The block above the fragment is protected (cannot be grabbed).
+  // Player must use terrain deformation to change height enough to reveal.
   const HIDDEN_MIN_DIST = 4;
+  const HIDDEN_MIN_HEIGHT = 3; // minimum initial block layers for hidden fragment placement
   const f3 = FRAGMENT_POSITIONS.find((f) => f.id === 3);
   const f4 = FRAGMENT_POSITIONS.find((f) => f.id === 4);
 
-  // Build hidden pool: cells on high terrain but at local low points
-  // "Local low" means its terrain height is BELOW the average of its neighbors
-  const highTerrainCells = safeBuildableLand.filter(c => getTerrainHeight(c.gx, c.gz) >= 0.8);
-  const hiddenBase = highTerrainCells.length > 2 ? highTerrainCells :
+  // Build hidden pool: safe land cells where terrain has enough height
+  const tallTerrainCells = safeBuildableLand.filter(c => {
+    const blockList = getBlockAt(c.gx, c.gz);
+    return blockList.length > HIDDEN_MIN_HEIGHT;
+  });
+  const hiddenBase = tallTerrainCells.length > 2 ? tallTerrainCells :
                 (safeBuildableLand.length ? safeBuildableLand :
                  (safeLand.length ? safeLand :
                   (buildableLand.length ? buildableLand : land)));
 
+  function placeHiddenFragment(f, candidates, usedKeys) {
+    const cell = pickRandomGridCell(candidates, usedKeys);
+    if (!cell) return false;
+    const blockList = getBlockAt(cell.gx, cell.gz);
+    const blockCount = blockList.length;
+    // Bury fragment at layer 2 or 3 from the top (random)
+    const depth = Math.random() < 0.5 ? 2 : 3;
+    const actualLayer = Math.max(0, blockCount - depth);
+    const fragY = actualLayer * 0.6 + 0.4;
+    // Record the original surface height (top of highest block) for reveal check
+    const surfaceY = (blockCount - 1) * 0.6 + 0.3;
+    f.pos.set(cell.gx * TILE, fragY, cell.gz * TILE);
+    f.originalHeight = surfaceY;
+    console.log("[Fragment]", f.id, "hidden at grid", cell.gx, cell.gz,
+      "blocks:", blockCount, "depth:", depth, "layer:", actualLayer,
+      "fragY:", fragY.toFixed(2), "surfaceY:", surfaceY.toFixed(2));
+    return true;
+  }
+
   if (f3) {
-    const cell = pickRandomGridCell(hiddenBase, used);
-    if (cell) {
-      const h = getTerrainHeight(cell.gx, cell.gz);
-      // Place at terrain height (not above it) — fragment is buried underground
-      f3.pos.set(cell.gx * TILE, h, cell.gz * TILE);
-      console.log("[Fragment] F3 hidden placed at grid", cell.gx, cell.gz,
-        "terrainH:", h.toFixed(2));
-    } else {
+    if (!placeHiddenFragment(f3, hiddenBase, used)) {
       console.warn("[Fragment] Could not find safe cell for hidden fragment 3");
     }
   }
@@ -146,15 +159,13 @@ function randomizeFragmentPositions() {
       return Math.sqrt(dx * dx + dz * dz) >= HIDDEN_MIN_DIST;
     });
     const pool4 = farCandidates.length ? farCandidates : hiddenBase;
-    const cell = pickRandomGridCell(pool4, used);
-    if (cell) {
-      const h = getTerrainHeight(cell.gx, cell.gz);
-      f4.pos.set(cell.gx * TILE, h, cell.gz * TILE);
-      const dist = Math.sqrt((cell.gx - f3gx) ** 2 + (cell.gz - f3gz) ** 2);
-      console.log("[Fragment] F4 hidden placed at grid", cell.gx, cell.gz,
-        "terrainH:", h.toFixed(2), "distFromF3:", dist.toFixed(1));
-    } else {
+    if (!placeHiddenFragment(f4, pool4, used)) {
       console.warn("[Fragment] Could not find safe cell for hidden fragment 4");
+    } else {
+      const f4gx = Math.round(f4.pos.x / TILE);
+      const f4gz = Math.round(f4.pos.z / TILE);
+      const dist = Math.sqrt((f4gx - f3gx) ** 2 + (f4gz - f3gz) ** 2);
+      console.log("[Fragment] F4 distFromF3:", dist.toFixed(1));
     }
   }
 }
@@ -229,16 +240,21 @@ function setupHiddenSignals() {
       }
     }
 
-    // Record terrain height at creation for reveal check
-    f.originalHeight = getTerrainHeight(gx, gz);
-    if (f.originalHeight <= 0 && isLand(gx, gz)) {
-      const direct = blockList.reduce((max, b) => Math.max(max, b.baseY + 0.3), 0);
-      if (direct > 0) f.originalHeight = direct;
+    // Record terrain height at creation for reveal check (only if not already set)
+    if (f.originalHeight <= 0) {
+      f.originalHeight = getTerrainHeight(gx, gz);
+      if (f.originalHeight <= 0 && isLand(gx, gz)) {
+        const direct = blockList.reduce((max, b) => Math.max(max, b.baseY + 0.3), 0);
+        if (direct > 0) f.originalHeight = direct;
+      }
     }
     console.log("[Fragment] Hidden", f.id, "at grid", gx, gz,
       "pos", f.pos.x.toFixed(1), f.pos.z.toFixed(1),
       "originalHeight:", f.originalHeight.toFixed(3),
       "blocks:", blockList.length);
+
+    // Protect the block above the fragment from being grabbed
+    protectBlock(gx, gz);
 
     // Create ground glow circle (invisible until activated)
     const circleGeo = new THREE.RingGeometry(0.3, 0.6, 32);
@@ -335,11 +351,9 @@ function updateHiddenSignals(delta) {
     const breathe = 1.0 + Math.sin(time * 2.5 + state.phase) * 0.2;
     state.signalCircle.scale.set(breathe, breathe, 1);
 
-    // Terrain blocks glow golden
+    // Terrain blocks vibrate (no color change)
     if (state.blocks.length > 0) {
       state.blocks.forEach(b => {
-        b.mesh.material.emissive.setHex(0xffaa00);
-        b.mesh.material.emissiveIntensity = 0.35 + pulse * 0.45;
         const v = Math.sin(time * 5 + state.phase + fragId * 1.7) * 0.02;
         b.mesh.position.y = b.baseY + v;
       });
@@ -413,7 +427,15 @@ function cleanupHiddenSignals() {
   });
   hiddenParticles.length = 0;
 
-  hiddenSignalState.forEach((state) => {
+  hiddenSignalState.forEach((state, fragId) => {
+    // Unprotect the block
+    const f = FRAGMENT_POSITIONS.find(fp => fp.id === fragId);
+    if (f) {
+      const gx = Math.round(f.pos.x / TILE);
+      const gz = Math.round(f.pos.z / TILE);
+      unprotectBlock(gx, gz);
+    }
+
     // Reset terrain blocks
     if (state.blocks.length > 0) {
       state.blocks.forEach(b => {
@@ -594,6 +616,10 @@ export function checkFragmentCollection() {
         signalState.signalCircle.material.dispose();
         hiddenSignalState.delete(f.id);
       }
+      // Unprotect the block — fragment is collected, no need to keep it locked
+      const fGx = Math.round(f.pos.x / TILE);
+      const fGz = Math.round(f.pos.z / TILE);
+      unprotectBlock(fGx, fGz);
       if (onCollectCallback) onCollectCallback(f.id, collectedCount);
       return f.id;
     }
@@ -721,6 +747,10 @@ function checkHiddenFragmentReveal() {
         sigState.signalCircle.material.dispose();
         hiddenSignalState.delete(f.id);
       }
+      // Fragment is now visible — unprotect so player can interact normally
+      const rGx = Math.round(f.pos.x / TILE);
+      const rGz = Math.round(f.pos.z / TILE);
+      unprotectBlock(rGx, rGz);
 
       console.log("[Fragment] Hidden fragment", f.id, "revealed!");
     }

@@ -106,7 +106,7 @@
     <!-- Start screen -->
     <div id="start-screen">
       <p id="start-text">「如果你发现了异常，<br />请不要惊慌。」</p>
-      <button id="start-btn">进入岛屿</button>
+      <button id="start-btn" onclick="window._startGame && window._startGame()">进入岛屿</button>
       <p id="start-hint">支持陀螺仪 | 手机体验更佳</p>
     </div>
 
@@ -226,6 +226,22 @@
         el.textContent = "启动失败（模块加载错误）：\n\n" + msg;
         document.body.appendChild(el);
       });
+    </script>
+    <!-- Non-module fallback: if modules fail entirely, button at least shows feedback -->
+    <script>
+      window._moduleReady = false;
+      setTimeout(function() {
+        if (!window._moduleReady) {
+          var btn = document.getElementById("start-btn");
+          if (btn) {
+            btn.addEventListener("click", function(e) {
+              e.preventDefault();
+              this.textContent = "加载失败，请刷新重试";
+              this.style.color = "#ff6666";
+            });
+          }
+        }
+      }, 3000);
     </script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import * as THREE from './lib/three.module.js';
+import * as THREE from "./lib/three.module.js";
 
 const GRID_SIZE = 50;
 const TILE_SIZE = 1;
@@ -38,7 +38,9 @@ export function initScene(container) {
   // Dispose old renderer to free WebGL context (critical on mobile)
   if (renderer) {
     renderer.dispose();
-    try { renderer.forceContextLoss(); } catch (e) {}
+    try {
+      renderer.forceContextLoss();
+    } catch (e) {}
     if (renderer.domElement && renderer.domElement.parentNode) {
       renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
@@ -46,34 +48,43 @@ export function initScene(container) {
 
   // Scene
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87CEEB);
-  scene.fog = new THREE.Fog(0x87CEEB, 35, 70);
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0x87ceeb, 35, 70);
 
   // Isometric camera (orthographic, 45° angle)
   const aspect = window.innerWidth / window.innerHeight;
   const size = 12;
-  camera = new THREE.OrthographicCamera(-size * aspect, size * aspect, size, -size, 0.1, 100);
+  camera = new THREE.OrthographicCamera(
+    -size * aspect,
+    size * aspect,
+    size,
+    -size,
+    0.1,
+    100,
+  );
   camera.position.set(16, 14, 16);
   camera.lookAt(0, 0, 0);
 
-  // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  // Renderer - optimized for Douyin platform
+  renderer = new THREE.WebGLRenderer({ antialias: false });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.shadowMap.enabled = false;
   container.appendChild(renderer.domElement);
 
   // Lighting — warm tones for DuangDuang feel
   const ambient = new THREE.AmbientLight(0xffeedd, 0.6);
   scene.add(ambient);
-  const hemi = new THREE.HemisphereLight(0x87CEEB, 0x5ea838, 0.4);
+  const hemi = new THREE.HemisphereLight(0x87ceeb, 0x5ea838, 0.4);
   scene.add(hemi);
   const dir = new THREE.DirectionalLight(0xfff5e6, 1.2);
   dir.position.set(10, 20, 5);
   dir.castShadow = true;
   dir.shadow.mapSize.set(1024, 1024);
-  dir.shadow.camera.left = -20; dir.shadow.camera.right = 20;
-  dir.shadow.camera.top = 20; dir.shadow.camera.bottom = -20;
+  dir.shadow.camera.left = -20;
+  dir.shadow.camera.right = 20;
+  dir.shadow.camera.top = 20;
+  dir.shadow.camera.bottom = -20;
   scene.add(dir);
 
   // Grid floor
@@ -84,8 +95,8 @@ export function initScene(container) {
   // Sky gradient (simple colored planes in background)
   createSkyBackground();
 
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", () => setTimeout(onResize, 200));
 }
 
 function createGrid() {
@@ -105,12 +116,12 @@ function createGrid() {
 
 function createCircularGridTexture() {
   const size = 768;
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = `#${gridBgColor.toString(16).padStart(6, '0')}`;
+  ctx.fillStyle = `#${gridBgColor.toString(16).padStart(6, "0")}`;
   ctx.fillRect(0, 0, size, size);
 
   const center = size / 2;
@@ -158,7 +169,7 @@ function onResize() {
   camera.bottom = -size;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 }
 
 // 重置场景内容但不销毁 renderer/scene/camera
@@ -166,21 +177,21 @@ function onResize() {
 export function resetSceneForGame() {
   // Remove all children except lights and grid
   const keep = new Set();
-  scene.children.forEach(child => {
+  scene.children.forEach((child) => {
     if (child.isLight || child === gridGroup) keep.add(child);
   });
   const toRemove = [];
-  scene.children.forEach(child => {
+  scene.children.forEach((child) => {
     if (!keep.has(child)) toRemove.push(child);
   });
-  toRemove.forEach(child => {
+  toRemove.forEach((child) => {
     scene.remove(child);
     disposeObject3D(child);
   });
 
   // Reset scene background & fog (may have been altered)
-  scene.background = new THREE.Color(0x87CEEB);
-  scene.fog = new THREE.Fog(0x87CEEB, 35, 70);
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0x87ceeb, 35, 70);
 
   // Reset camera
   const aspect = window.innerWidth / window.innerHeight;
@@ -195,15 +206,31 @@ export function resetSceneForGame() {
 
   // Ensure renderer size matches current viewport (critical for mobile)
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 }
 
-export function getScene() { return scene; }
-export function getCamera() { return camera; }
-export function getRenderer() { return renderer; }
-export function getTileSize() { return TILE_SIZE; }
-export function getGridSize() { return GRID_SIZE; }
-export function getHalfGrid() { return (GRID_SIZE / 2) * TILE_SIZE; }
-export function getMapRadius() { return MAP_RADIUS; }
-export function render() { renderer.render(scene, camera); }
+export function getScene() {
+  return scene;
+}
+export function getCamera() {
+  return camera;
+}
+export function getRenderer() {
+  return renderer;
+}
+export function getTileSize() {
+  return TILE_SIZE;
+}
+export function getGridSize() {
+  return GRID_SIZE;
+}
+export function getHalfGrid() {
+  return (GRID_SIZE / 2) * TILE_SIZE;
+}
+export function getMapRadius() {
+  return MAP_RADIUS;
+}
+export function render() {
+  renderer.render(scene, camera);
+}
 export { onResize };

@@ -30,7 +30,7 @@ function createParticle(x, y, z, color, velocity, life) {
 }
 
 // Spawn collect particles at position
-export function spawnCollectParticles(x, y, z, count = 12) {
+export function spawnCollectParticles(x, y, z, count = 6) {
   const scene = getScene();
   const group = new THREE.Group();
   group.name = 'particleEffect';
@@ -53,7 +53,7 @@ export function spawnCollectParticles(x, y, z, count = 12) {
 }
 
 // Spawn splash particles at water surface
-export function spawnSplashParticles(x, y, z, count = 8) {
+export function spawnSplashParticles(x, y, z, count = 4) {
   const scene = getScene();
   const group = new THREE.Group();
   group.name = 'particleEffect';
@@ -76,7 +76,7 @@ export function spawnSplashParticles(x, y, z, count = 8) {
 }
 
 // Spawn dust particles for terrain deformation
-export function spawnDustParticles(x, y, z, count = 6) {
+export function spawnDustParticles(x, y, z, count = 3) {
   const scene = getScene();
   const group = new THREE.Group();
   group.name = 'particleEffect';

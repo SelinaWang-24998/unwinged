@@ -100,6 +100,7 @@ let score = 0;
 let onRestartCallback = null;
 let onStartCallback = null;
 let firstMoveTriggered = false;
+let uiInitialized = false; // 添加标记，防止重复初始化
 
 // DOM elements
 let scoreEl, livesEl, timerEl, modeLabel, startScreen, endScreen;
@@ -178,22 +179,22 @@ const HONORS = [
   {
     id: "streak_3_5",
     cat: "星级连胜",
-    name: "三星霸主",
-    desc: "连续5局三星评价",
+    name: "五星霸主",
+    desc: "连续5局五星评价",
     hidden: false,
   },
   {
     id: "streak_3_4",
     cat: "星级连胜",
     name: "不败先锋",
-    desc: "连续4局三星评价",
+    desc: "连续4局五星评价",
     hidden: false,
   },
   {
     id: "count_3_20",
     cat: "星级连胜",
-    name: "三星常客",
-    desc: "累计20次三星评价",
+    name: "五星常客",
+    desc: "累计20次五星评价",
     hidden: false,
   },
   {
@@ -378,7 +379,7 @@ function buildLeaderboardData(tab) {
       p.bestWinTime != null ? `${p.bestWinTime.toFixed(1)}s` : "无记录";
     me.val = p.bestWinTime ?? Infinity;
   } else if (tab === "stars") {
-    me.score = `${p.totalThreeStar} 次三星`;
+    me.score = `${p.totalThreeStar} 次五星`;
     me.val = p.totalThreeStar;
   } else {
     const unlocked = p.unlocked ? Object.keys(p.unlocked).length : 0;
@@ -458,7 +459,7 @@ async function shareLeaderboard() {
   const honors = p.unlocked ? Object.keys(p.unlocked).length : 0;
   const text = [
     "🏝️ 插翅难飞 — 我的游戏记录",
-    `⭐ 三星通关: ${p.totalThreeStar} 次`,
+    `⭐ 五星通关: ${p.totalThreeStar} 次`,
     `🏆 荣誉: ${honors} 个`,
     `🎮 游戏局数: ${p.gamesPlayed}`,
     p.bestWinTime ? `⚡ 最快通关: ${p.bestWinTime.toFixed(1)}s` : "",
@@ -530,268 +531,275 @@ function startCountdown() {
 }
 
 export function initUI() {
+  if (uiInitialized) {
+    return; // 防止重复初始化
+  }
+  uiInitialized = true;
+
   try {
-  scoreEl = document.getElementById("score");
-  livesEl = document.getElementById("lives");
-  timerEl = document.getElementById("timer");
-  modeLabel = document.getElementById("mode-label");
-  startScreen = document.getElementById("start-screen");
-  endScreen = document.getElementById("end-screen");
-  endTitle = document.getElementById("end-title");
-  endScore = document.getElementById("end-score");
-  endJournalHint = document.getElementById("end-journal-hint");
-  endHonorsEl = document.getElementById("end-honors");
-  homeBtn = document.getElementById("home-btn");
-  restartBtn = document.getElementById("restart-btn");
-  honorBtn = document.getElementById("honor-btn");
-  startBtn = document.getElementById("start-btn");
-  countdownOverlay = document.getElementById("countdown-overlay");
-  countdownNumber = document.getElementById("countdown-number");
-  pauseBtn = document.getElementById("pause-btn");
-  pauseOverlay = document.getElementById("pause-overlay");
-  resumeBtn = document.getElementById("resume-btn");
-  pauseRestartBtn = document.getElementById("pause-restart-btn");
-  pauseEndBtn = document.getElementById("pause-end-btn");
-  honorPanel = document.getElementById("honor-panel");
-  honorList = document.getElementById("honor-list");
-  honorClose = document.getElementById("honor-close");
-  leaderboardPanel = document.getElementById("leaderboard-panel");
-  leaderboardList = document.getElementById("leaderboard-list");
-  leaderboardClose = document.getElementById("leaderboard-close");
-  leaderboardShare = document.getElementById("leaderboard-share");
-  leaderboardTabs = document.getElementById("leaderboard-tabs");
-  fullscreenPrompt = document.getElementById("fullscreen-prompt");
-  const leaderboardBtn = document.getElementById("leaderboard-btn");
+    scoreEl = document.getElementById("score");
+    livesEl = document.getElementById("lives");
+    timerEl = document.getElementById("timer");
+    modeLabel = document.getElementById("mode-label");
+    startScreen = document.getElementById("start-screen");
+    endScreen = document.getElementById("end-screen");
+    endTitle = document.getElementById("end-title");
+    endScore = document.getElementById("end-score");
+    endJournalHint = document.getElementById("end-journal-hint");
+    endHonorsEl = document.getElementById("end-honors");
+    homeBtn = document.getElementById("home-btn");
+    restartBtn = document.getElementById("restart-btn");
+    honorBtn = document.getElementById("honor-btn");
+    startBtn = document.getElementById("start-btn");
+    countdownOverlay = document.getElementById("countdown-overlay");
+    countdownNumber = document.getElementById("countdown-number");
+    pauseBtn = document.getElementById("pause-btn");
+    pauseOverlay = document.getElementById("pause-overlay");
+    resumeBtn = document.getElementById("resume-btn");
+    pauseRestartBtn = document.getElementById("pause-restart-btn");
+    pauseEndBtn = document.getElementById("pause-end-btn");
+    honorPanel = document.getElementById("honor-panel");
+    honorList = document.getElementById("honor-list");
+    honorClose = document.getElementById("honor-close");
+    leaderboardPanel = document.getElementById("leaderboard-panel");
+    leaderboardList = document.getElementById("leaderboard-list");
+    leaderboardClose = document.getElementById("leaderboard-close");
+    leaderboardShare = document.getElementById("leaderboard-share");
+    leaderboardTabs = document.getElementById("leaderboard-tabs");
+    fullscreenPrompt = document.getElementById("fullscreen-prompt");
+    const leaderboardBtn = document.getElementById("leaderboard-btn");
 
-  let lastPointerActionAt = 0;
+    let lastPointerActionAt = 0;
 
-  // Detect mobile
-  isMobile =
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    "ontouchstart" in window;
-  if (isMobile) {
-    document.getElementById("mobile-controls")?.classList.remove("hidden");
-    document.getElementById("keyboard-viz")?.classList.add("hidden");
-  }
-
-  function shouldAcceptPointerAction() {
-    const now = performance.now();
-    if (now - lastPointerActionAt < 300) return false;
-    lastPointerActionAt = now;
-    return true;
-  }
-
-  async function ensureMobileFullscreenLandscape() {
-    if (!isMobile) return;
-    await requestLandscape();
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const isPortrait = W < H;
-    const rotatePrompt = document.getElementById("rotate-prompt");
-    if (isPortrait) {
-      document.body.classList.add("portrait-lock");
-      if (rotatePrompt) rotatePrompt.style.display = "flex";
-    } else {
-      document.body.classList.remove("portrait-lock");
-      if (rotatePrompt) rotatePrompt.style.display = "none";
+    // Detect mobile
+    isMobile =
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      "ontouchstart" in window;
+    if (isMobile) {
+      document.getElementById("mobile-controls")?.classList.remove("hidden");
+      document.getElementById("keyboard-viz")?.classList.add("hidden");
     }
-    const isFs =
-      !!document.fullscreenElement || !!document.webkitFullscreenElement;
-    if (isByteDanceWebView || !canFullscreen()) {
-      if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
-    } else if (!isFs) {
-      if (fullscreenPrompt) fullscreenPrompt.classList.remove("hidden");
+
+    function shouldAcceptPointerAction() {
+      const now = performance.now();
+      if (now - lastPointerActionAt < 300) return false;
+      lastPointerActionAt = now;
+      return true;
     }
-  }
 
-  async function startFromHome() {
-    if (gameRunning || gameOver || paused || countdownActive) return;
-    console.log("点击进入岛屿，startFromHome 运行");
-    try {
-      // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
-      requestGyroPermission(); // 不 await，避免阻塞倒计时
-      ensureMobileFullscreenLandscape(); // 不阻塞倒计时，尽力争就好
-      startScreen.classList.add("hidden");
-      console.log("准备 startCountdown");
-      startCountdown();
-    } catch (err) {
-      console.error("startFromHome 出错:", err);
-      alert("启动失败: " + err.message);
-    }
-  }
-  startBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    startFromHome();
-  });
-
-  function goHome() {
-    endScreen.classList.add("hidden");
-  closeHonorPanel();
-  closeLeaderboard();
-  hideJournalReview();
-    if (onRestartCallback) onRestartCallback();
-  }
-
-  homeBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    goHome();
-  });
-
-  honorBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    openHonorPanel();
-  });
-  honorClose?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    closeHonorPanel();
-  });
-
-  leaderboardBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    openLeaderboard();
-  });
-  leaderboardClose?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    closeLeaderboard();
-  });
-  leaderboardShare?.addEventListener("click", () => shareLeaderboard());
-  leaderboardTabs?.addEventListener("click", (e) => {
-    const tab = e.target.closest(".lb-tab")?.dataset.tab;
-    if (tab) renderLeaderboard(tab);
-  });
-
-  // Restart button
-  async function restartRun() {
-    if (onRestartCallback) onRestartCallback();
-    requestGyroPermission();
-    await ensureMobileFullscreenLandscape();
-    endScreen.classList.add("hidden");
-    startScreen?.classList.add("hidden");
-    startCountdown();
-  }
-  restartBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    restartRun();
-  });
-
-  pauseBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    if (!gameRunning || gameOver) return;
-    setPaused(!paused);
-  });
-  resumeBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    setPaused(false);
-  });
-  pauseRestartBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    (async () => {
-      setPaused(false);
-      if (onRestartCallback) onRestartCallback();
-      requestGyroPermission();
-      await ensureMobileFullscreenLandscape();
-      startScreen?.classList.add("hidden");
-      startCountdown();
-    })();
-  });
-
-  function endRunFromPause() {
-    if (!gameRunning || gameOver) return;
-    endGame("quit");
-  }
-  pauseEndBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    endRunFromPause();
-  });
-
-  // Recalibrate gyro button in pause menu
-  const recalibrateBtn = document.getElementById("recalibrate-btn");
-  recalibrateBtn?.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!shouldAcceptPointerAction()) return;
-    requestRecalibration();
-  });
-
-  // Keyboard visualizer helper
-  function updateKeyViz(code, pressed) {
-    const el = document.querySelector(`#keyboard-viz [data-key="${code}"]`);
-    if (el) el.classList.toggle("active", pressed);
-    if (code === "ControlLeft" || code === "ControlRight") {
-      const ctrl = document.querySelector("#keyboard-viz .mod-key");
-      if (ctrl) ctrl.classList.toggle("active", pressed);
-    }
-  }
-
-  // Keyboard input
-  document.addEventListener("keydown", (e) => {
-    updateKeyViz(e.code, true);
-    if (e.code === "KeyQ") {
-      const mode = toggleGyroMode();
-      modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
-    }
-    if (e.code === "Escape") {
-      if (isJournalReviewVisible()) {
-        hideJournalReview();
-      } else if (gameRunning && !gameOver) setPaused(!paused);
-    }
-    if (e.code === "KeyE") {
-      placeBlockAction();
-    }
-    if (e.code === "KeyF") {
-      grabBlockAction();
-    }
-    if (e.code === "Tab") {
-      e.preventDefault();
-      toggleJournalReview();
-    }
-    if (e.code === "Space") e.preventDefault();
-
-    // PC gyro: Ctrl+Arrow to simulate gyro tilt
-    if (e.ctrlKey) {
-      const dirMap = {
-        ArrowUp: { x: 0, z: 1 },
-        ArrowDown: { x: 0, z: -1 },
-        ArrowLeft: { x: -1, z: 0 },
-        ArrowRight: { x: 1, z: 0 },
-      };
-      if (dirMap[e.code]) {
-        e.preventDefault();
-        pcGyroPulse(dirMap[e.code]);
-        return;
+    async function ensureMobileFullscreenLandscape() {
+      if (!isMobile) return;
+      await requestLandscape();
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      const isPortrait = W < H;
+      const rotatePrompt = document.getElementById("rotate-prompt");
+      if (isPortrait) {
+        document.body.classList.add("portrait-lock");
+        if (rotatePrompt) rotatePrompt.style.display = "flex";
+      } else {
+        document.body.classList.remove("portrait-lock");
+        if (rotatePrompt) rotatePrompt.style.display = "none";
+      }
+      const isFs =
+        !!document.fullscreenElement || !!document.webkitFullscreenElement;
+      if (isByteDanceWebView || !canFullscreen()) {
+        if (fullscreenPrompt) fullscreenPrompt.classList.add("hidden");
+      } else if (!isFs) {
+        if (fullscreenPrompt) fullscreenPrompt.classList.remove("hidden");
       }
     }
 
-    setKey(e.code, true);
-  });
+    function startFromHome() {
+      if (gameRunning || gameOver || paused || countdownActive) return;
+      console.log("点击进入岛屿，startFromHome 运行");
+      try {
+        startScreen.classList.add("hidden");
+        startCountdown();
+        // 在用户手势中请求陀螺仪权限（iOS 要求在 transient activation 内调用）
+        try {
+          requestGyroPermission();
+        } catch (_e) {}
+        ensureMobileFullscreenLandscape().catch(function () {});
+      } catch (err) {
+        console.error("startFromHome 出错:", err);
+        alert("启动失败: " + err.message);
+      }
+    }
+    startBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startFromHome();
+    });
+    // Fallback for WebViews where addEventListener may not fire
+    window._startGame = startFromHome;
 
-  document.addEventListener("keyup", (e) => {
-    updateKeyViz(e.code, false);
-    setKey(e.code, false);
-  });
+    function goHome() {
+      endScreen.classList.add("hidden");
+      closeHonorPanel();
+      closeLeaderboard();
+      hideJournalReview();
+      if (onRestartCallback) onRestartCallback();
+    }
 
-  // Mobile joystick
-  if (isMobile) setupJoystick();
-  setupMobileButtons();
-  initOrientationGuards();
+    homeBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      goHome();
+    });
 
-  // Monster journal review close button
-  const journalReviewPanel = document.getElementById('journal-review');
-  const journalReviewClose = document.getElementById('journal-close');
-  journalReviewClose?.addEventListener('click', (e) => {
-    e.preventDefault();
-    hideJournalReview();
-  });
-  } catch(err) {
+    honorBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      openHonorPanel();
+    });
+    honorClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      closeHonorPanel();
+    });
+
+    leaderboardBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      openLeaderboard();
+    });
+    leaderboardClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      closeLeaderboard();
+    });
+    leaderboardShare?.addEventListener("click", () => shareLeaderboard());
+    leaderboardTabs?.addEventListener("click", (e) => {
+      const tab = e.target.closest(".lb-tab")?.dataset.tab;
+      if (tab) renderLeaderboard(tab);
+    });
+
+    // Restart button
+    function restartRun() {
+      if (onRestartCallback) onRestartCallback();
+      requestGyroPermission();
+      ensureMobileFullscreenLandscape(); // 不 await
+      endScreen.classList.add("hidden");
+      startScreen?.classList.add("hidden");
+      startCountdown();
+    }
+    restartBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      restartRun();
+    });
+
+    pauseBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      if (!gameRunning || gameOver) return;
+      setPaused(!paused);
+    });
+    resumeBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      setPaused(false);
+    });
+    pauseRestartBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      setPaused(false);
+      if (onRestartCallback) onRestartCallback();
+      requestGyroPermission();
+      ensureMobileFullscreenLandscape();
+      startScreen?.classList.add("hidden");
+      startCountdown();
+    });
+
+    function endRunFromPause() {
+      if (!gameRunning || gameOver) return;
+      endGame("quit");
+    }
+    pauseEndBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      endRunFromPause();
+    });
+
+    // Recalibrate gyro button in pause menu
+    const recalibrateBtn = document.getElementById("recalibrate-btn");
+    recalibrateBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!shouldAcceptPointerAction()) return;
+      requestRecalibration();
+    });
+
+    // Keyboard visualizer helper
+    function updateKeyViz(code, pressed) {
+      const el = document.querySelector(`#keyboard-viz [data-key="${code}"]`);
+      if (el) el.classList.toggle("active", pressed);
+      if (code === "ControlLeft" || code === "ControlRight") {
+        const ctrl = document.querySelector("#keyboard-viz .mod-key");
+        if (ctrl) ctrl.classList.toggle("active", pressed);
+      }
+    }
+
+    // Keyboard input
+    document.addEventListener("keydown", (e) => {
+      updateKeyViz(e.code, true);
+      if (e.code === "KeyQ") {
+        const mode = toggleGyroMode();
+        modeLabel.textContent = mode === "pursuer" ? "追捕者" : "地形";
+      }
+      if (e.code === "Escape") {
+        if (isJournalReviewVisible()) {
+          hideJournalReview();
+        } else if (gameRunning && !gameOver) setPaused(!paused);
+      }
+      if (e.code === "KeyE") {
+        placeBlockAction();
+      }
+      if (e.code === "KeyF") {
+        grabBlockAction();
+      }
+      if (e.code === "Tab") {
+        e.preventDefault();
+        toggleJournalReview();
+      }
+      if (e.code === "Space") e.preventDefault();
+
+      // PC gyro: Ctrl+Arrow to simulate gyro tilt
+      if (e.ctrlKey) {
+        const dirMap = {
+          ArrowUp: { x: 0, z: 1 },
+          ArrowDown: { x: 0, z: -1 },
+          ArrowLeft: { x: -1, z: 0 },
+          ArrowRight: { x: 1, z: 0 },
+        };
+        if (dirMap[e.code]) {
+          e.preventDefault();
+          pcGyroPulse(dirMap[e.code]);
+          return;
+        }
+      }
+
+      setKey(e.code, true);
+    });
+
+    document.addEventListener("keyup", (e) => {
+      updateKeyViz(e.code, false);
+      setKey(e.code, false);
+    });
+
+    // Mobile joystick
+    if (isMobile) setupJoystick();
+    setupMobileButtons();
+    initOrientationGuards();
+
+    // Monster journal review close button
+    const journalReviewPanel = document.getElementById("journal-review");
+    const journalReviewClose = document.getElementById("journal-close");
+    journalReviewClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      hideJournalReview();
+    });
+  } catch (err) {
     console.error("initUI() 失败:", err);
     alert("initUI() 失败: " + err.message);
   }
@@ -1145,11 +1153,16 @@ export function endGame(reason) {
   }
 
   const hasSpeedHonor = [
-    "speed_gale", "speed_dash", "speed_half",
-    "speed_best_time", "speed_best_speed",
+    "speed_gale",
+    "speed_dash",
+    "speed_half",
+    "speed_best_time",
+    "speed_best_speed",
   ].some((id) => hasUnlocked(id) || newlyUnlocked.includes(id));
   const hasSurviveHonor = [
-    "survive_zero", "survive_timeout_5", "survive_hide",
+    "survive_zero",
+    "survive_timeout_5",
+    "survive_hide",
   ].some((id) => hasUnlocked(id) || newlyUnlocked.includes(id));
   if (hasSpeedHonor && hasSurviveHonor) {
     earnedThisRun.push("hard_allround");
@@ -1306,30 +1319,30 @@ export { isMobile };
 
 // === Monster Journal Review Panel ===
 function showJournalReview() {
-  const panel = document.getElementById('journal-review');
-  const list = document.getElementById('journal-review-list');
+  const panel = document.getElementById("journal-review");
+  const list = document.getElementById("journal-review-list");
   if (!panel || !list) return;
 
   const history = getVoiceHistory();
   if (history.length === 0) {
     list.innerHTML = '<li style="color:#666;font-style:normal;">暂无记录</li>';
   } else {
-    list.innerHTML = history.map((text, i) =>
-      `<li>${i + 1}. ${text}</li>`
-    ).join('');
+    list.innerHTML = history
+      .map((text, i) => `<li>${i + 1}. ${text}</li>`)
+      .join("");
   }
-  panel.classList.remove('hidden');
+  panel.classList.remove("hidden");
 }
 
 function hideJournalReview() {
-  const panel = document.getElementById('journal-review');
-  if (panel) panel.classList.add('hidden');
+  const panel = document.getElementById("journal-review");
+  if (panel) panel.classList.add("hidden");
 }
 
 export function toggleJournalReview() {
-  const panel = document.getElementById('journal-review');
+  const panel = document.getElementById("journal-review");
   if (!panel) return;
-  if (panel.classList.contains('hidden')) {
+  if (panel.classList.contains("hidden")) {
     showJournalReview();
   } else {
     hideJournalReview();
@@ -1337,6 +1350,6 @@ export function toggleJournalReview() {
 }
 
 export function isJournalReviewVisible() {
-  const panel = document.getElementById('journal-review');
-  return panel ? !panel.classList.contains('hidden') : false;
+  const panel = document.getElementById("journal-review");
+  return panel ? !panel.classList.contains("hidden") : false;
 }

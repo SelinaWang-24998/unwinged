@@ -7,28 +7,31 @@ import { getCollectedCount, getTotalFragments } from "./fragments.js";
 
 const HINTS = [
   {
-    id: 'T1',
-    condition: (state) => state.hasSeenFragment && !state.hasCollectedFragment && state.timeSinceLastMove > 10,
-    message: "它看到了什么，却没有停留。",
+    id: "T1",
+    condition: (state) =>
+      state.hasSeenFragment &&
+      !state.hasCollectedFragment &&
+      state.timeSinceLastMove > 10,
+    message: "ta看到了什么，却没有停留。",
     priority: 3,
     cooldown: 20,
-    type: 'voice', // 追捕者心声
+    type: "voice", // 追捕者心声
   },
   {
-    id: 'T9',
+    id: "T9",
     condition: (state) => state.timeSinceStart < 15 && !state.hasMoved,
     message: "身体微倾，世界亦随之偏转。",
     priority: 1,
     cooldown: 15,
-    type: 'hud', // HUD短句
+    type: "hud", // HUD短句
   },
   {
-    id: 'T10',
+    id: "T10",
     condition: (state) => state.timeSinceStart < 30 && !state.hasUsedGyro,
     message: "你的意志可以改变脚下的大地。",
     priority: 2,
     cooldown: 15,
-    type: 'hud',
+    type: "hud",
   },
 ];
 
@@ -84,7 +87,11 @@ class HintSystem {
     if (window._isVoiceShowing?.()) return;
 
     for (const hint of HINTS) {
-      if (this.hintCooldowns[hint.id] && now - this.hintCooldowns[hint.id] < hint.cooldown) continue;
+      if (
+        this.hintCooldowns[hint.id] &&
+        now - this.hintCooldowns[hint.id] < hint.cooldown
+      )
+        continue;
       if (hint.condition(this.state)) {
         this.emitHint(hint);
         this.state.lastHintTime = now;
@@ -96,24 +103,24 @@ class HintSystem {
 
   emitHint(hint) {
     console.log(`[Hint] ${hint.id}: ${hint.message}`);
-    if (hint.type === 'voice') {
-      triggerJournal('hint_voice', hint.message);
-    } else if (hint.type === 'hud') {
+    if (hint.type === "voice") {
+      triggerJournal("hint_voice", hint.message);
+    } else if (hint.type === "hud") {
       // Dismiss any active journal popup before showing HUD hint
       window._dismissJournalPopup?.();
       this.showHUDHint(hint.message);
-    } else if (hint.type === 'environment') {
+    } else if (hint.type === "environment") {
       // Environment changes are handled elsewhere
     }
   }
 
   showHUDHint(message) {
     // Create a temporary HUD hint element
-    const existing = document.getElementById('hud-hint');
+    const existing = document.getElementById("hud-hint");
     if (existing) existing.remove();
 
-    const hintEl = document.createElement('div');
-    hintEl.id = 'hud-hint';
+    const hintEl = document.createElement("div");
+    hintEl.id = "hud-hint";
     hintEl.style.cssText = `
       position: fixed;
       bottom: 80px;
@@ -132,9 +139,9 @@ class HintSystem {
     document.body.appendChild(hintEl);
 
     // Add animation if not already present
-    if (!document.getElementById('hud-hint-style')) {
-      const style = document.createElement('style');
-      style.id = 'hud-hint-style';
+    if (!document.getElementById("hud-hint-style")) {
+      const style = document.createElement("style");
+      style.id = "hud-hint-style";
       style.textContent = `
         @keyframes hintFade {
           0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
@@ -156,7 +163,7 @@ class HintSystem {
 
 // Dismiss active HUD hint immediately (bridge for journal/voice priority)
 export function dismissHUDHint() {
-  const existing = document.getElementById('hud-hint');
+  const existing = document.getElementById("hud-hint");
   if (existing) existing.remove();
 }
 

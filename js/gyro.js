@@ -32,9 +32,9 @@ let calibration = {
 };
 
 // === Signal Processing Pipeline ===
-const DEAD_ZONE = 5;       // degrees — ignore micro-tremor
-const MAX_TILT = 45;       // degrees — clamp above this
-const SMOOTHING = 0.15;    // EMA factor (0=raw, 1=frozen)
+const DEAD_ZONE = 5; // degrees — ignore micro-tremor
+const MAX_TILT = 45; // degrees — clamp above this
+const SMOOTHING = 0.15; // EMA factor (0=raw, 1=frozen)
 const SENSITIVITY_POW = 1.5; // 1=linear, 2=quadratic, 1.5=moderate
 
 let smoothedTilt = { beta: 0, gamma: 0 };
@@ -51,7 +51,13 @@ function updateDebug() {
   // Keyboard viz gyro params — show processed values
   set("kb-beta", (smoothedTilt.beta ?? 0).toFixed(1) + "\u00b0");
   set("kb-gamma", (smoothedTilt.gamma ?? 0).toFixed(1) + "\u00b0");
-  set("kb-tilt", Math.max(Math.abs(smoothedTilt.beta || 0), Math.abs(smoothedTilt.gamma || 0)).toFixed(0) + "\u00b0");
+  set(
+    "kb-tilt",
+    Math.max(
+      Math.abs(smoothedTilt.beta || 0),
+      Math.abs(smoothedTilt.gamma || 0),
+    ).toFixed(0) + "\u00b0",
+  );
   set("kb-mode", mode === "pursuer" ? "\u8ffd\u6355\u8005" : "\u5730\u5f62");
 }
 
@@ -65,29 +71,31 @@ function getScreenAngleRad() {
   return (angleDeg * Math.PI) / 180;
 }
 
-export async function requestGyroPermission() {
+export function requestGyroPermission() {
   try {
     const DevOrient = window.DeviceOrientationEvent;
     if (!DevOrient) {
       permissionState = "denied";
-      return false;
+      return;
     }
     if (typeof DevOrient.requestPermission === "function") {
-      const permission = await DevOrient.requestPermission();
-      if (permission !== "granted") {
-        permissionState = "denied";
-        console.warn("[Gyro] \u7528\u6237\u672a\u6388\u6743\u9640\u87ba\u4eea");
-        return false;
-      }
+      // 不 await，让ta异步运行，不阻塞
+      DevOrient.requestPermission()
+        .then((permission) => {
+          if (permission === "granted") {
+            permissionState = "granted";
+          } else {
+            permissionState = "denied";
+          }
+        })
+        .catch(() => {
+          permissionState = "denied";
+        });
+    } else {
+      permissionState = "granted";
     }
-    permissionState = "granted";
-    console.log("[Gyro] \u9640\u87ba\u4eea\u6743\u9650\u5df2\u83b7\u53d6");
-    updateDebug();
-    return true;
   } catch (e) {
     permissionState = "denied";
-    console.warn("[Gyro] \u6743\u9650\u8bf7\u6c42\u5931\u8d25", e);
-    return false;
   }
 }
 
@@ -95,11 +103,9 @@ export function initGyro() {
   try {
     const DevOrient = window.DeviceOrientationEvent;
     if (!DevOrient) {
-      console.warn("[Gyro] \u5f53\u524d\u73af\u5883\u4e0d\u652f\u6301 DeviceOrientationEvent");
       return false;
     }
     window.addEventListener("deviceorientation", handleOrientation, true);
-    console.log("[Gyro] \u9640\u87ba\u4eea\u76d1\u542c\u5df2\u542f\u52a8");
 
     // Auto-recalibrate on orientation change
     try {
@@ -111,7 +117,6 @@ export function initGyro() {
     updateDebug();
     return true;
   } catch (e) {
-    console.warn("[Gyro] \u521d\u59cb\u5316\u5931\u8d25\uff0c\u964d\u7ea7\u4e3a\u666e\u901a\u63a7\u5236", e);
     return false;
   }
 }
@@ -130,7 +135,11 @@ function handleOrientation(e) {
       calibration.beta = calibration.sampleBeta / calibration.sampleCount;
       calibration.gamma = calibration.sampleGamma / calibration.sampleCount;
       calibration.calibrated = true;
-      console.log("[Gyro] \u6821\u51c6\u5b8c\u6210:", calibration.beta.toFixed(1), calibration.gamma.toFixed(1));
+      console.log(
+        "[Gyro] \u6821\u51c6\u5b8c\u6210:",
+        calibration.beta.toFixed(1),
+        calibration.gamma.toFixed(1),
+      );
     }
     return; // Don't feed uncalibrated data
   }
@@ -162,8 +171,14 @@ function processTilt(rawBeta, rawGamma, delta) {
   // 3. Sensitivity curve (pow makes small tilts gentler, large tilts stronger)
   const tiltRange = MAX_TILT - DEAD_ZONE;
   if (tiltRange > 0) {
-    b = Math.sign(b) * Math.pow(Math.abs(b) / tiltRange, SENSITIVITY_POW) * tiltRange;
-    g = Math.sign(g) * Math.pow(Math.abs(g) / tiltRange, SENSITIVITY_POW) * tiltRange;
+    b =
+      Math.sign(b) *
+      Math.pow(Math.abs(b) / tiltRange, SENSITIVITY_POW) *
+      tiltRange;
+    g =
+      Math.sign(g) *
+      Math.pow(Math.abs(g) / tiltRange, SENSITIVITY_POW) *
+      tiltRange;
   }
 
   // 4. EMA smoothing
@@ -178,7 +193,7 @@ export function updateGyro(delta) {
   if (pulseCooldown > 0) pulseCooldown -= delta;
   if (tiltTimer > 0) tiltTimer -= delta;
 
-  updateDebug();
+  // 移除了 updateDebug() 调用，提高性能
 
   if (pcSimActive) return; // PC controls handled separately
 
@@ -218,14 +233,23 @@ export function updateGyro(delta) {
         let fx = -e[8];
         let fz = -e[10];
         const fl = Math.hypot(fx, fz);
-        if (fl > 1e-8) { fx /= fl; fz /= fl; } else { fx = 0; fz = 1; }
+        if (fl > 1e-8) {
+          fx /= fl;
+          fz /= fl;
+        } else {
+          fx = 0;
+          fz = 1;
+        }
         const rl = Math.hypot(rx, rz);
         const rnx = rl > 1e-8 ? rx / rl : 1;
         const rnz = rl > 1e-8 ? rz / rl : 0;
         let wx = rnx * tiltX + fx * tiltZ;
         let wz = rnz * tiltX + fz * tiltZ;
         const wl = Math.hypot(wx, wz);
-        if (wl > 1e-8) { wx /= wl; wz /= wl; }
+        if (wl > 1e-8) {
+          wx /= wl;
+          wz /= wl;
+        }
         gyroControlPursuer(wx, wz, intensity);
       }
       pulseCooldown = PULSE_COOLDOWN;
@@ -252,10 +276,18 @@ export function updateGyro(delta) {
         let wz = tiltZ;
         if (camera) {
           const e = camera.matrixWorld.elements;
-          const rx = e[0]; const rz = e[2];
-          let fx = -e[8]; let fz = -e[10];
+          const rx = e[0];
+          const rz = e[2];
+          let fx = -e[8];
+          let fz = -e[10];
           const fl = Math.hypot(fx, fz);
-          if (fl > 1e-8) { fx /= fl; fz /= fl; } else { fx = 0; fz = 1; }
+          if (fl > 1e-8) {
+            fx /= fl;
+            fz /= fl;
+          } else {
+            fx = 0;
+            fz = 1;
+          }
           const rl = Math.hypot(rx, rz);
           const rnx = rl > 1e-8 ? rx / rl : 1;
           const rnz = rl > 1e-8 ? rz / rl : 0;
@@ -263,7 +295,10 @@ export function updateGyro(delta) {
           wz = rnz * tiltX + fz * tiltZ;
         }
         const wl = Math.hypot(wx, wz);
-        if (wl > 1e-8) { wx /= wl; wz /= wl; }
+        if (wl > 1e-8) {
+          wx /= wl;
+          wz /= wl;
+        }
 
         tiltTerrainDirectional(pos.x, pos.z, wx, wz, intensity, 3, 1.1, true);
         playTerrainDeform();
@@ -289,10 +324,18 @@ export function updateGyro(delta) {
       let wz = tiltZ;
       if (camera) {
         const e = camera.matrixWorld.elements;
-        const rx = e[0]; const rz = e[2];
-        let fx = -e[8]; let fz = -e[10];
+        const rx = e[0];
+        const rz = e[2];
+        let fx = -e[8];
+        let fz = -e[10];
         const fl = Math.hypot(fx, fz);
-        if (fl > 1e-8) { fx /= fl; fz /= fl; } else { fx = 0; fz = 1; }
+        if (fl > 1e-8) {
+          fx /= fl;
+          fz /= fl;
+        } else {
+          fx = 0;
+          fz = 1;
+        }
         const rl = Math.hypot(rx, rz);
         const rnx = rl > 1e-8 ? rx / rl : 1;
         const rnz = rl > 1e-8 ? rz / rl : 0;
@@ -300,7 +343,10 @@ export function updateGyro(delta) {
         wz = rnz * tiltX + fz * tiltZ;
       }
       const wl = Math.hypot(wx, wz);
-      if (wl > 1e-8) { wx /= wl; wz /= wl; }
+      if (wl > 1e-8) {
+        wx /= wl;
+        wz /= wl;
+      }
 
       createWave({ x: wx, z: wz }, intensity);
     }
